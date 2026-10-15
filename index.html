@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Casa - sol, sombras, luz, energia nas paredes e conforto ao longo do ano</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1720; --panel:rgba(18,26,38,.92); --line:#2b3a4f; --txt:#e8eef6; --mut:#9fb0c5; --acc:#f5b942; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#0b1220; color:var(--txt); font:13px/1.4 "Segoe UI", system-ui, sans-serif; overflow:hidden; }
+  #view { position:fixed; inset:0; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; backdrop-filter: blur(4px); }
+  #left { top:10px; left:10px; width:310px; max-height:calc(100% - 20px); overflow:auto; }
+  #right { top:10px; right:10px; width:440px; max-height:calc(100% - 20px); overflow:auto; }
+  #legend { left:50%; transform:translateX(-50%); bottom:10px; min-width:380px; text-align:center; padding:6px 12px; }
+  h3 { margin:8px 0 4px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--acc); }
+  h3:first-child { margin-top:0; }
+  label { display:block; margin:3px 0; color:var(--txt); cursor:pointer; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:4px 0; }
+  button { background:#1d2b3f; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:5px 8px; cursor:pointer; font:inherit; }
+  button:hover { background:#27405f; } button.on { background:#c98a12; border-color:#f5b942; color:#111; }
+  .big { font-size:18px; font-weight:600; } .mut { color:var(--mut); } .small { font-size:11.5px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; } th, td { padding:3px 5px; text-align:right; border-bottom:1px solid #223045; }
+  th:first-child, td:first-child { text-align:left; } th { color:var(--mut); font-weight:600; position:sticky; top:0; background:#121a26; }
+  .tabs { display:flex; gap:4px; margin-bottom:6px; } .tabs button { flex:1; } .hide { display:none; }
+  .chip { display:inline-block; padding:1px 6px; border-radius:10px; font-size:11px; font-weight:600; color:#111; }
+  .ok { background:#6fcf97; } .hot { background:#f2994a; } .cold { background:#56ccf2; } .na { background:#9aa5b1; }
+  #bar { height:12px; border-radius:6px; margin:4px 0; } #windarrow { display:inline-block; font-size:20px; transition: transform .2s; }
+  .warn { color:#f2c94c; font-size:11.5px; }
+  .chip { white-space:nowrap; }
+  #toggles { position:fixed; top:8px; left:50%; transform:translateX(-50%); z-index:5; display:flex; gap:6px; }
+  #toggles a { background:rgba(18,26,38,.92); border:1px solid var(--line); border-radius:6px; padding:3px 10px; font-size:12px; color:var(--acc); text-decoration:none; }
+  #toggles button.lang.on { background:#c98a12; border-color:#f5b942; color:#111; }
+  #toggles button { padding:3px 10px; font-size:12px; background:rgba(18,26,38,.92); }
+  @media (max-width: 1000px) {
+    #left { width:min(300px, 46vw); max-height:calc(100% - 60px); top:44px; font-size:12px; }
+    #right { width:min(440px, calc(54vw - 10px)); max-height:calc(100% - 60px); top:44px; font-size:12px; }
+    #legend { min-width:0; width:90vw; bottom:4px; }
+  }
+  .badge { display:inline-block; padding:0 6px; border-radius:8px; font-size:10px; font-weight:600; color:#fff; vertical-align:middle; }
+  .scale { border:1px solid #223045; border-radius:8px; padding:6px 8px; margin:6px 0; }
+  .scale .stitle { font-weight:600; margin-bottom:2px; }
+  table.bands td { text-align:left; vertical-align:top; padding:2px 4px; font-size:11.5px; }
+  table.bands td.rng { white-space:nowrap; color:var(--mut); } table.bands td.mean { color:var(--txt); }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="toggles"><button id="tgLeft">Controles ▾</button><button id="tgRight">Resultados ▾</button><button id="langPT" class="lang">PT</button><button id="langEN" class="lang">EN</button><a id="pdfLink" href="reports/Relatorio_Casa.pdf" target="_blank" data-pt="Relatório em PDF">PDF report</a></div>
+
+<div id="left" class="panel">
+  <h3 data-pt="Data e hora">Date and time</h3>
+  <div class="big" id="dateLabel"></div>
+  <div class="small mut" data-pt="Dia do ano">Day of the year</div>
+  <input id="doy" type="range" min="1" max="365" step="1">
+  <div class="small mut" data-pt="Hora do dia (relógio local)">Time of day (local clock)</div>
+  <input id="hour" type="range" min="0" max="23.75" step="0.25">
+  <div class="row">
+    <button id="playDay" data-pt="▶ Dia">▶ Day</button><button id="playYear" data-pt="▶ Ano">▶ Year</button>
+    <label class="small" style="margin:0 0 0 auto"><span data-pt="velocidade">speed</span> <input id="speed" type="range" min="1" max="10" value="4" style="width:70px"></label>
+  </div>
+  <div class="row small">
+    <button data-p="355,12" data-pt="Sol de verão<br>21 dez">Summer sun<br>21 Dec</button><button data-p="80,12" data-pt="Equinócio<br>21 mar">Equinox<br>21 Mar</button>
+    <button data-p="172,12" data-pt="Sol de inverno<br>21 jun">Winter sun<br>21 Jun</button><button data-p="264,12" data-pt="Equinócio<br>21 set">Equinox<br>21 Sep</button>
+  </div>
+
+  <h3 data-pt="O que mostrar nos pisos / paredes">What to show on the floors / walls</h3>
+  <label><input type="radio" name="ov" value="none"> <span data-pt="Nada">Nothing</span></label>
+  <label><input type="radio" name="ov" value="sun" checked> <span data-pt="Sol no piso agora (% do ambiente em sol direto)">Sun on the floor now (% of the room in direct sun)</span></label>
+  <label><input type="radio" name="ov" value="lux"> <span data-pt="Luz natural agora (lux)">Natural light now (lux)</span></label>
+  <label><input type="radio" name="ov" value="temp"> <span data-pt="Temperatura interna agora (vs faixa de conforto)">Indoor temperature now (vs comfort band)</span></label>
+  <label><input type="radio" name="ov" value="comfort"> <span data-pt="Horas confortáveis por ano (%)">Comfortable hours per year (%)</span></label>
+  <label><input type="radio" name="ov" value="cool"> <span data-pt="Custo para refrigerar no verão (R$ por ano)">Cost to cool in summer (R$ per year)</span></label>
+  <label><input type="radio" name="ov" value="wall"> <span data-pt="Energia solar nas paredes e na cobertura (kWh/m²)">Wall and roof energy (kWh/m² of sun)</span></label>
+  <div class="row small" id="seasonRow"><span class="mut" data-pt="Período da energia:">Energy period:</span>
+    <button data-s="annual_kWh_m2" class="on" data-pt="Ano">Year</button><button data-s="summer_kWh_m2" data-pt="Verão">Summer</button><button data-s="winter_kWh_m2" data-pt="Inverno">Winter</button></div>
+
+  <h3 data-pt="Vista">View</h3>
+  <label><input type="checkbox" id="shadows" checked> <span data-pt="Sombras">Shadows</span></label>
+  <label><input type="checkbox" id="sunpath" checked> <span data-pt="Trajetórias do sol (21 dez / equinócio / 21 jun)">Sun paths (21 Dec / equinox / 21 Jun)</span></label>
+  <label><input type="checkbox" id="ghost" checked> <span data-pt="Ver através da cobertura e dos forros (eles ainda projetam sombra)">See through roof and ceilings (they still cast shadows)</span></label>
+  <label><input type="checkbox" id="labels" checked> <span data-pt="Nomes dos ambientes">Room labels</span></label>
+  <div class="row small">
+    <button data-v="front" data-pt="Rua">Street</button><button data-v="aerial" data-pt="Aérea">Aerial</button><button data-v="top" data-pt="Topo">Top</button>
+    <button data-v="east" data-pt="Lado esquerdo">Left side</button><button data-v="west" data-pt="Lado direito">Right side</button><button data-v="back" data-pt="Fundos">Back</button>
+  </div>
+  <div class="small mut" data-pt="Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte é o lado da rua.">Drag to rotate, wheel to zoom, right-drag to move. North is the street side.</div>
+</div>
+
+<div id="right" class="panel">
+  <div class="tabs"><button data-tab="now" class="on" data-pt="Agora">Now</button><button data-tab="year" data-pt="Ano todo">Whole year</button><button data-tab="good" data-pt="O que é bom?">What's good?</button><button data-tab="mat" data-pt="Materiais">Materials</button></div>
+
+  <div id="tab-now">
+    <div class="row"><div><div class="mut small" data-pt="Sol">Sun</div><div id="sunInfo" class="big"></div></div>
+      <div style="margin-left:auto"><div class="mut small" data-pt="Vento (de onde vem)">Wind (from)</div><div><span id="windarrow">↑</span> <b id="windInfo"></b></div></div></div>
+    <div class="row small"><div><span data-pt="Externa">Outdoor</span> <b id="outT"></b></div><div><span data-pt="Faixa de conforto">Comfort band</span> <b id="band"></b></div><div><span data-pt="Potência do sol">Sun power</span> <b id="ghi"></b></div></div>
+    <table id="roomTable"></table>
+    <div class="warn" id="note"></div>
+  </div>
+
+  <div id="tab-year" class="hide"></div>
+  <div id="tab-good" class="hide"></div>
+  <div id="tab-mat" class="hide"></div>
+</div>
+
+<div id="legend" class="panel"><div id="legendTitle" class="small"></div><div id="bar"></div><div id="legendScale" class="small mut"></div></div>
+<script type="module" src="./app.js?v=3"></script>
+</body>
+</html>
