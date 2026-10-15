@@ -596,5 +596,5 @@ function setLang(l) {
 $('langPT').onclick = () => setLang('pt'); $('langEN').onclick = () => setLang('en');
 fetch('reports/Relatorio_Casa.pdf', { method: 'HEAD' }).then(r => { if (!r.ok) $('pdfLink').style.display = 'none'; }).catch(() => { $('pdfLink').style.display = 'none'; });
 applyStatic(); refresh();
-window.__viewer = { setLang, get LANG() { return LANG; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
+window.__viewer = { setLang, refresh, sunLine, get LANG() { return LANG; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
