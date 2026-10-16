@@ -529,12 +529,19 @@ function buildMat() {
   h += `</table><div class="small mut">${X('U = heat leaking per m² per degree (lower is better). Heat store = how much heat the layer soaks up before passing it on (higher smooths out day/night swings).',
     'U = calor que escapa por m² por grau (menor é melhor). Armazena calor = quanto calor a camada absorve antes de repassar (maior suaviza as oscilações entre dia e noite).')}</div>`;
   h += `<h3>${X('How much do materials matter? (average comfortable hours / year, cooling bill)', 'Quanto importam os materiais? (média de horas confortáveis / ano, conta de climatização)')}</h3>`;
-  const walls = [...new Set(stat.scenarios.map(s => s.wall))], roofs = [...new Set(stat.scenarios.map(s => s.roof))];
-  h += `<table><tr><th>${X('Roof \\ Wall', 'Cobertura \\ Parede')}</th>` + walls.map(w => { const s = stat.scenarios.find(x => x.wall === w); return `<th title="${esc(lab(s.wall_label, s.wall_label_pt))}">${w}</th>`; }).join('') + '</tr>';
-  for (const rk of roofs) { const sr = stat.scenarios.find(s => s.roof === rk), rl = lab(sr.roof_label, sr.roof_label_pt);
-    h += `<tr><td title="${esc(rl)}">${rl.length > 38 ? esc(rl.slice(0, 36)) + '…' : esc(rl)}</td>` + walls.map(w => { const s = stat.scenarios.find(x => x.wall === w && x.roof === rk); return `<td>${nf(s.avg_comfort_hours)} h<br><span class="small mut">${CUR} ${nf(s.cooling_BRL_year)}/${X('yr', 'ano')}${HEAT ? ` · ${CUR} ${nf(s.heating_cost_year)}/${X('yr', 'ano')}` : ''}</span></td>`; }).join('') + '</tr>'; }
-  h += `</table><div class="small mut">${X('brick9 = standard 9 cm 8-hole block wall (13 cm with plaster), brick14 = 14 cm brick (18 cm with plaster), block14 = concrete block.',
-    'brick9 = parede de bloco padrão de 9 cm e 8 furos (13 cm com reboco), brick14 = tijolo de 14 cm (18 cm com reboco), block14 = bloco de concreto.')}</div>`;
+  h += `<div class="small mut">${X('An existing house rarely gets new walls, but the roof / ceiling can often be improved, so each is shown on its own (the other part stays as it is today). Roof upgrades such as wool are in the Upgrades tab.',
+    'Numa casa pronta é muito difícil trocar as paredes, mas a cobertura muitas vezes pode ser melhorada; por isso cada uma é mostrada separadamente (a outra parte fica como é hoje). Melhorias de cobertura, como lã, estão na aba Melhorias.')}</div>`;
+  const bw = bc.wall_key, br = bc.roof_key, tot = s => s.cooling_BRL_year + (HEAT ? s.heating_cost_year : 0);
+  const base = stat.scenarios.find(s => s.wall === bw && s.roof === br);
+  const part = (title, rows, labf) => {
+    let t = `<h3>${title}</h3><table><tr><th></th><th>${X('Comfortable h/yr', 'h confortáveis/ano')}</th><th>${X('Bill', 'Conta')} (${CUR}/${X('yr', 'ano')})</th><th>${X('vs. current', 'vs. atual')}</th></tr>`;
+    for (const s of rows.sort((a, b) => b.avg_comfort_hours - a.avg_comfort_hours)) {
+      const isb = s.wall === bw && s.roof === br, d = tot(s) - tot(base), l = labf(s);
+      t += `<tr><td title="${esc(l)}">${l.length > 40 ? esc(l.slice(0, 38)) + '…' : esc(l)}${isb ? ` <b>(${X('current', 'atual')})</b>` : ''}</td><td>${nf(s.avg_comfort_hours)}</td><td>${nf(tot(s))}</td><td>${isb ? '–' : (d > 0 ? '+' : '') + nf(d)}</td></tr>`; }
+    return t + '</table>';
+  };
+  h += part(X('Walls (roof kept)', 'Paredes (cobertura mantida)'), stat.scenarios.filter(s => s.roof === br), s => lab(s.wall_label, s.wall_label_pt));
+  h += part(X('Roof / ceiling (walls kept)', 'Cobertura / forro (paredes mantidas)'), stat.scenarios.filter(s => s.wall === bw), s => lab(s.roof_label, s.roof_label_pt));
   $('tab-mat').innerHTML = h;
 }
 
