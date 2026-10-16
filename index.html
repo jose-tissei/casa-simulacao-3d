@@ -69,7 +69,10 @@
   table.bands td { text-align:left; vertical-align:top; padding:2px 4px; font-size:11.5px; }
   table.bands td.rng { white-space:nowrap; color:var(--mut); } table.bands td.mean { color:var(--txt); }
 </style>
-<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+<!-- start every download at once: the module graph and the three data files (the page code fetches the data only after the modules have loaded) -->
+<link rel="modulepreload" href="./vendor/three.module.min.js"><link rel="modulepreload" href="./vendor/OrbitControls.js"><link rel="modulepreload" href="./app.js?v=3">
+<link rel="preload" as="fetch" crossorigin href="data/geometry.json"><link rel="preload" as="fetch" crossorigin href="data/hourly.json"><link rel="preload" as="fetch" crossorigin href="data/static.json">
 </head>
 <body>
 <div id="view"></div>

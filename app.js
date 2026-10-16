@@ -615,7 +615,7 @@ function buildUp() {
 }
 function engineCards(M) {
   const E = M.engines || []; if (!E.length) return '';
-  const card = e => `<a href="${e.url}" target="_blank" style="flex:1;min-width:130px;text-align:center;background:#fff;border-radius:6px;padding:8px;text-decoration:none;color:#111"><img src="${e.logo}" style="height:28px;max-width:130px;object-fit:contain"><div style="font-size:12px"><b>${e.name}</b> ${e.version}</div><div style="font-size:11px;color:#555">${e.role}</div></a>`;
+  const card = e => `<a href="${e.url}" target="_blank" style="flex:1;min-width:130px;text-align:center;background:#fff;border-radius:6px;padding:8px;text-decoration:none;color:#111"><img loading="lazy" src="${e.logo}" style="height:28px;max-width:130px;object-fit:contain"><div style="font-size:12px"><b>${e.name}</b> ${e.version}</div><div style="font-size:11px;color:#555">${e.role}</div></a>`;
   return `<h3>${X('Reference engines', 'Motores de referência')}</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${E.map(card).join('')}</div><div class="small mut" style="margin-top:4px">${X('Logos belong to their projects and only credit the software used.', 'Os logos pertencem aos respectivos projetos e apenas creditam os programas usados.')}</div>`;
 }
 function buildMeth() {
