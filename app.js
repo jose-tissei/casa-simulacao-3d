@@ -4,6 +4,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 const [geo, hourly, stat] = await Promise.all(
   ['data/geometry.json', 'data/hourly.json', 'data/static.json'].map(u => fetch(u).then(r => r.json())));
 
+const CUR = stat.project.currency || 'R$';
+const st = () => stat.project.season_text[LANG];                           // {sum, win}: months of the summer / winter in this hemisphere
 // ---------------------------------------------------------------- language (pt-BR default, en available) -------------------
 const hashLang = new URLSearchParams(location.hash.slice(1)).get('lang');
 let LANG = ['pt', 'en'].includes(hashLang) ? hashLang : (localStorage.getItem('lang') || 'pt');
@@ -23,25 +25,26 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 800);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 2000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-const CENTER = new THREE.Vector3(4.5, 1.0, -10.5);            // model (x, y) = (4.5, 10.5) -> three (x, up, -y)
+const PROJ = stat.project, SK = Math.max(PROJ.size / 23, 0.5);        // SK = size of the building relative to the original house
+const CENTER = new THREE.Vector3(PROJ.center[0], 1.0 * SK, -PROJ.center[1]);            // model (x, y) -> three (x, up, -y)
 const m2t = (x, y, z = 0) => new THREE.Vector3(x, z, -y);       // model Z-up (x west, y south) -> three Y-up
 const srgb = (r, g, b) => { const c = new THREE.Color(); c.setRGB(r, g, b, THREE.SRGBColorSpace); return c; };
 
 // ground, street
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: srgb(0.45, 0.60, 0.36), roughness: 1 }));
-ground.rotation.x = -Math.PI / 2; ground.position.set(4.5, -0.12, -10.5); ground.receiveShadow = true; scene.add(ground);
+ground.rotation.x = -Math.PI / 2; ground.position.set(CENTER.x, -0.12, CENTER.z); ground.receiveShadow = true; scene.add(ground);
 const street = new THREE.Mesh(new THREE.PlaneGeometry(400, 9), new THREE.MeshStandardMaterial({ color: srgb(0.30, 0.31, 0.33), roughness: 1 }));
-street.rotation.x = -Math.PI / 2; street.position.set(4.5, -0.1, 11.5); street.receiveShadow = true; scene.add(street);
+street.rotation.x = -Math.PI / 2; street.position.set(4.5, -0.1, 11.5); street.receiveShadow = true; if (PROJ.has_street) scene.add(street);
 
 // lights
 const hemi = new THREE.HemisphereLight(0xbcd6ff, 0x6f7d5c, 0.5); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1d0, 3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-const sc = sun.shadow.camera; sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 160;
+const sc = sun.shadow.camera; sc.left = -26 * SK; sc.right = 26 * SK; sc.top = 26 * SK; sc.bottom = -26 * SK; sc.near = 1; sc.far = 160 * SK;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 sun.target.position.copy(CENTER);
 scene.add(sun, sun.target);
@@ -73,7 +76,7 @@ for (const el of geo.elements) {
   const mesh = new THREE.Mesh(g, mat);
   mesh.castShadow = !glass; mesh.receiveShadow = true;
   const lname = el.n.toLowerCase();
-  const isRoof = lname.includes('roof') && !lname.includes('lining') || lname.includes('gable');
+  const isRoof = el.rf !== undefined ? el.rf : (lname.includes('roof') && !lname.includes('lining') || lname.includes('gable'));
   const isCeil = el.c === 'IfcCovering' || el.c === 'IfcBeam';
   const entry = { mesh, el, base: col.slice(), kind: isRoof ? 'roof' : isCeil ? 'ceiling' : el.c };
   if (isRoof || isCeil) hideable.push(entry);
@@ -121,7 +124,7 @@ const toLinear = c => srgb(c[0] / 255, c[1] / 255, c[2] / 255);
 const pathGroup = new THREE.Group(); scene.add(pathGroup);
 for (const [d, colr] of [[355, 0xff8a3d], [80, 0x6fcf97], [172, 0x56ccf2]]) {
   const pts = [];
-  for (let h = 0; h <= 24; h += 0.25) { const s = solar(d, h, LAT, LON, TZ); if (s.elev > 0) pts.push(CENTER.clone().add(sunVec(s.elev, s.az).multiplyScalar(48))); }
+  for (let h = 0; h <= 24; h += 0.25) { const s = solar(d, h, LAT, LON, TZ); if (s.elev > 0) pts.push(CENTER.clone().add(sunVec(s.elev, s.az).multiplyScalar(48 * SK))); }
   pathGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: colr })));
 }
 function textSprite(text, size = 1, color = '#ffffff', bg = null) {
@@ -145,10 +148,11 @@ function setSprite(sp, text, color) {
   sp.material.map.needsUpdate = true; sp.scale.set(4 * size, size, 1); sp.renderOrder = 20;
 }
 const compassSprites = [];
-const compassText = () => [[X('N  (street, front)', 'N  (rua, frente)'), [0, 0, 1]], [X('S  (back yard)', 'S  (quintal)'), [0, 0, -1]],
-                           [X('E  (left side)', 'L  (lado esquerdo)'), [-1, 0, 0]], [X('W  (right side)', 'O  (lado direito)'), [1, 0, 0]]];
+const compassText = () => PROJ.has_street ? [[X('N  (street, front)', 'N  (rua, frente)'), [0, 0, 1]], [X('S  (back yard)', 'S  (quintal)'), [0, 0, -1]],
+                           [X('E  (left side)', 'L  (lado esquerdo)'), [-1, 0, 0]], [X('W  (right side)', 'O  (lado direito)'), [1, 0, 0]]]
+  : [[X('N  (north)', 'N  (norte)'), [0, 0, 1]], [X('S  (south)', 'S  (sul)'), [0, 0, -1]], [X('E  (east)', 'L  (leste)'), [-1, 0, 0]], [X('W  (west)', 'O  (oeste)'), [1, 0, 0]]];
 for (const [tx, p] of compassText()) {
-  const sp = textSprite(tx, 2.2, '#ffe9a8'); sp.position.set(CENTER.x + p[0] * 40, 0.5, CENTER.z + p[2] * 40); pathGroup.add(sp); compassSprites.push(sp);
+  const sp = textSprite(tx, 2.2, '#ffe9a8'); sp.position.set(CENTER.x + p[0] * 40 * SK, 0.5, CENTER.z + p[2] * 40 * SK); pathGroup.add(sp); compassSprites.push(sp);
 }
 const sunLabel = textSprite('', 2.2, '#ffd23f'); scene.add(sunLabel);
 
@@ -160,10 +164,11 @@ for (const zn of zoneNames) {
   const pts = geo.zones[zn].map(p => new THREE.Vector2(p[0], p[1]));
   const g = new THREE.ShapeGeometry(new THREE.Shape(pts)); g.rotateX(-Math.PI / 2);
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide }));
-  m.position.y = 0.06; m.renderOrder = 5; scene.add(m);
+  const z0 = geo.zones_z0 ? geo.zones_z0[zn] : 0;
+  m.position.y = z0 + 0.06; m.renderOrder = 5; scene.add(m);
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const sp = textSprite(rn(zn), 1.25, '#ffffff', 'rgba(10,15,25,.72)'); sp.position.set(cx, 0.9, -cy); labelGroup.add(sp);
+  const sp = textSprite(rn(zn), 1.25, '#ffffff', 'rgba(10,15,25,.72)'); sp.position.set(cx, z0 + 0.9, -cy); labelGroup.add(sp);
   zoneMeshes[zn] = { mesh: m, sprite: sp };
 }
 
@@ -212,13 +217,13 @@ function setGhost() {
 function updateSun() {
   const s = solar(S.doy, S.hour, LAT, LON, TZ), up = s.elev > 0;
   const v = sunVec(Math.max(s.elev, 0.5), s.az);
-  sun.position.copy(CENTER).add(v.clone().multiplyScalar(80));
+  sun.position.copy(CENTER).add(v.clone().multiplyScalar(80 * SK));
   sun.intensity = up ? 3.0 * clamp(Math.sin(s.elev * Math.PI / 180) * 2 + 0.1, 0, 1) : 0;
   hemi.intensity = 0.12 + 0.5 * clamp(s.elev / 25, 0, 1) + (s.elev > -6 ? 0.05 : 0);
   sun.color.set(s.elev < 12 ? 0xffc27a : 0xfff1d0);
   sun.castShadow = $('shadows').checked && up;
   scene.background = new THREE.Color().setRGB(...ramp([[8, 12, 30], [60, 80, 130], [150, 190, 235]], clamp((s.elev + 8) / 40, 0, 1)).map(x => x / 255), THREE.SRGBColorSpace);
-  const pos = CENTER.clone().add(sunVec(Math.max(s.elev, -5), s.az).multiplyScalar(48));
+  const pos = CENTER.clone().add(sunVec(Math.max(s.elev, -5), s.az).multiplyScalar(48 * SK));
   sunBall.position.copy(pos); sunBall.visible = up; sunLabel.position.copy(pos).add(new THREE.Vector3(0, 3.5, 0)); sunLabel.visible = up;
   setSprite(sunLabel, X(`${fmtHour(S.hour)}  ${Math.round(s.elev)}° high`, `${fmtHour(S.hour)}  ${Math.round(s.elev)}° de altura`));
   sunLine.geometry.setFromPoints([pos, CENTER]); sunLine.visible = up;
@@ -242,7 +247,7 @@ function updateOverlay(h, band) {
     } else if (mode === 'cool') {
       const row = stat.cooling.find(r => r.room === room);
       if (row && row.schedule !== 'not cooled') { const r = rateOf('cooling_kwh_m2', row.kWh_per_m2_year); c = hexRgb(r.color);
-        text = `${zl}\nR$ ${nf(row.cost_BRL_year)}/${X('yr', 'ano')} · ${r.label}`; } else { c = [150, 150, 150]; text = `${zl}\n${X('(not air-conditioned)', '(sem ar-condicionado)')}`; }
+        text = `${zl}\n${CUR} ${nf(row.cost_BRL_year)}/${X('yr', 'ano')} · ${r.label}`; } else { c = [150, 150, 150]; text = `${zl}\n${X('(not air-conditioned)', '(sem ar-condicionado)')}`; }
     } else if (mode === 'comfort') {
       const row = comfortRow(room);
       if (row) { const r = rateOf('comfort_pct', row['comfort80_%']); c = hexRgb(r.color); text = `${zl}\n${row['comfort80_%']}% ${X('of the year', 'do ano')}: ${r.label}`; } else { c = [150, 150, 150]; text = `${zl}\n${X('(outdoor)', '(ao ar livre)')}`; }
@@ -253,13 +258,13 @@ function updateOverlay(h, band) {
   if (mode === 'sun') { legendTitle = X('Share of each room floor in DIRECT sun right now (from the ray-traced simulation)', 'Parcela do piso de cada ambiente em sol DIRETO agora (da simulação com traçado de raios)'); gradient = SUNRAMP; scale = '0%  →  100%'; }
   else if (mode === 'lux') { legendTitle = X('Natural light on a table-height plane, room average right now (lux)', 'Luz natural em um plano na altura da mesa, média do ambiente agora (lux)'); gradient = VIRIDIS; scale = X('6 lux  →  20,000 lux (log scale).  Goal at home: about 150 lux general light, 300–500 lux for reading', '6 lux  →  20.000 lux (escala log).  Meta em casa: cerca de 150 lux de luz geral, 300–500 lux para leitura'); }
   else if (mode === 'temp') { legendTitle = X('Indoor feel (operative) temperature now: green = inside the comfort band, orange/red = hot, blue = cold', 'Temperatura operativa interna agora: verde = dentro da faixa de conforto, laranja/vermelho = quente, azul = frio'); gradient = [[40, 80, 200], [120, 200, 255], [90, 190, 110], [255, 200, 80], [215, 48, 39]]; scale = X('colder  ←  comfortable  →  hotter', 'mais frio  ←  confortável  →  mais quente'); }
-  else if (mode === 'cool') { legendTitle = X(`Cost to cool each room in summer with an air conditioner (R$ per year at R$ ${nf(stat.cooling_assumptions.tariff_BRL_per_kWh, 2)}/kWh; colour = level)`, `Custo para refrigerar cada ambiente no verão com ar-condicionado (R$ por ano a R$ ${nf(stat.cooling_assumptions.tariff_BRL_per_kWh, 2)}/kWh; cor = nível)`);
+  else if (mode === 'cool') { legendTitle = X(`Cost to cool each room in summer with an air conditioner (${CUR} per year at ${CUR} ${nf(stat.cooling_assumptions.tariff_BRL_per_kWh, 2)}/kWh; colour = level)`, `Custo para refrigerar cada ambiente no verão com ar-condicionado (${CUR} por ano a ${CUR} ${nf(stat.cooling_assumptions.tariff_BRL_per_kWh, 2)}/kWh; cor = nível)`);
     const bs = SC.scales.cooling_kwh_m2.bands; gradient = bs.flatMap(b => [hexRgb(SC.levels[b.level].color), hexRgb(SC.levels[b.level].color)]);
     scale = bs.map(b => `${b.label} ${b.lo === null ? '<' + b.hi : b.hi === null ? '≥' + b.lo : b.lo + '–' + b.hi} kWh/m²`).join('  ·  '); }
   else if (mode === 'comfort') { legendTitle = X('Hours per year inside the comfortable range (colour = verdict)', 'Horas por ano dentro da faixa confortável (cor = veredito)');
     const bs = SC.scales.comfort_pct.bands; gradient = bs.flatMap(b => [hexRgb(SC.levels[b.level].color), hexRgb(SC.levels[b.level].color)]);
     scale = bs.map(b => `${b.label} ${b.lo === null ? '<' + b.hi : b.hi === null ? '≥' + b.lo : b.lo + '–' + b.hi}%`).join('  ·  '); }
-  else if (mode === 'wall') { const [lo, hi] = energyRange(); legendTitle = X('Sunshine energy that hits each wall / the roof, ', 'Energia solar que bate em cada parede / na cobertura, ') + ({ annual_kWh_m2: X('whole year', 'ano todo'), summer_kWh_m2: X('summer (Dec-Feb)', 'verão (dez-fev)'), winter_kWh_m2: X('winter (Jun-Aug)', 'inverno (jun-ago)') })[S.season] + X(' (kWh per m²)', ' (kWh por m²)'); gradient = ENERGY; scale = `${Math.round(lo)}  →  ${Math.round(hi)} kWh/m²`; }
+  else if (mode === 'wall') { const [lo, hi] = energyRange(); legendTitle = X('Sunshine energy that hits each wall / the roof, ', 'Energia solar que bate em cada parede / na cobertura, ') + ({ annual_kWh_m2: X('whole year', 'ano todo'), summer_kWh_m2: X(`summer (${st().sum})`, `verão (${st().sum})`), winter_kWh_m2: X(`winter (${st().win})`, `inverno (${st().win})`) })[S.season] + X(' (kWh per m²)', ' (kWh por m²)'); gradient = ENERGY; scale = `${Math.round(lo)}  →  ${Math.round(hi)} kWh/m²`; }
   $('legend').style.display = mode === 'none' ? 'none' : 'block';
   $('legendTitle').textContent = legendTitle; $('legendScale').textContent = scale;
   if (gradient) $('bar').style.background = `linear-gradient(90deg, ${gradient.map(css).join(',')})`;
@@ -299,7 +304,10 @@ function refresh() {
 // ---------------------------------------------------------------- ratings (scales come from tools/ratings.py, one set per language) -------
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const isNum = v => v !== null && v !== undefined && !Number.isNaN(v);
+const COLD = !!stat.project.cold_climate;
+const HEAT = (stat.cooling_assumptions.heating || {}).enabled;
 function rateOf(key, v) {
+  if (key === 'comfort_pct' && COLD) return { level: null, label: 'n/a', meaning: '', color: SC.neutral };
   if (!isNum(v)) return { level: null, label: 'n/a', meaning: '', color: SC.neutral };
   for (const b of SC.scales[key].bands)
     if ((b.lo === null || v >= b.lo) && (b.hi === null || v < b.hi)) return { ...b, color: SC.levels[b.level].color };
@@ -344,6 +352,7 @@ function houseList(key) {
     case 'peak_temp': return pick(C, 'room', 'max_T', null, v => `${nf(v, 1)} °C`);
     case 'lowest_temp': return pick(C, 'room', 'min_T', null, v => `${nf(v, 1)} °C`);
     case 'wind_speed': return [{ name: X('Maringá, whole year', 'Maringá, ano todo'), value: stat.mean_wind, text: `${nf(stat.mean_wind, 1)} m/s` }];
+    case 'heating_kwh_m2': return pick(stat.cooling.filter(r => r.heating_fuel_kWh_year > 0), 'room', 'heating_kWh_per_m2_year', null, v => `${nf(v, 1)} kWh/m²`);
     case 'cooling_kwh_m2': return pick(stat.cooling.filter(r => r.schedule !== 'not cooled'), 'room', 'kWh_per_m2_year', null, v => `${nf(v, 1)} kWh/m²`);
     case 'cross_vent': return pick(stat.cross, 'room', 'cross_ventilation_hours_%', LONG_STAY, v => `${nf(v)}%`);
     case 'wall_sun_summer': return stat.facade.filter(r => r.name.includes('wall')).map(r => ({ name: fname(r.name), value: r.summer_kWh_m2, text: `${nf(r.summer_kWh_m2)}` }));
@@ -380,22 +389,34 @@ function roomLevels(room) {         // levels (0-4) of every rated check for a r
   if (o && LONG_STAY.includes(kind)) { lv('vent_effective', o['openable_%_of_floor']); lv('glazing_ratio', o['window_%_of_floor']); }
   const cr = stat.cooling.find(x => x.room === room);
   if (cr && cr.schedule !== 'not cooled') lv('cooling_kwh_m2', cr.kWh_per_m2_year);
+  if (HEAT && cr && cr.heating_fuel_kWh_year > 0) lv('heating_kwh_m2', cr.heating_kWh_per_m2_year);
   return L;
 }
 
 const SCHED_KIND = { bedroom: ['bedrooms', 'dormitórios'], living: ['living', 'sala'], kitchen: ['kitchen', 'cozinha'] };
 function coolingTable() {
-  const A = stat.cooling_assumptions, tar = nf(A.tariff_BRL_per_kWh, 2);
+  const A = stat.cooling_assumptions, tar = nf(A.tariff_BRL_per_kWh, 2), H = A.heating || {};
   const sched = Object.entries(SCHED_KIND).map(([k, [en, pt]]) => `${X(en, pt)} ${A.schedules[k]}`).join(', ');
   let h = `<h3>${X('Cost of cooling in summer (air conditioner)', 'Custo de refrigerar no verão (ar-condicionado)')}</h3><div class="small">`
-        + X(`Electricity to hold each room at ${A.setpoint_C} °C while it is in use (${sched}). Efficiency COP ${nf(A.COP, 1)}, tariff <b>R$ ${tar}/kWh</b> (assumption).`,
-            `Eletricidade para manter cada ambiente a ${A.setpoint_C} °C enquanto está em uso (${sched}). Eficiência COP ${nf(A.COP, 1)}, tarifa de <b>R$ ${tar}/kWh</b> (suposição).`) + '</div>';
-  h += `<table><tr><th>${X('Room', 'Ambiente')}</th><th>kWh / ${X('year', 'ano')}</th><th>R$ / ${X('year', 'ano')}</th><th>R$ ${X('Dec–Feb', 'dez–fev')}</th><th>${X('Level', 'Nível')}</th></tr>`;
+        + X(`Electricity to hold each room at ${A.setpoint_C} °C while it is in use (${sched}). Efficiency COP ${nf(A.COP, 1)}, tariff <b>${CUR} ${tar}/kWh</b> (assumption).`,
+            `Eletricidade para manter cada ambiente a ${A.setpoint_C} °C enquanto está em uso (${sched}). Eficiência COP ${nf(A.COP, 1)}, tarifa de <b>${CUR} ${tar}/kWh</b> (suposição).`) + '</div>';
+  h += `<table><tr><th>${X('Room', 'Ambiente')}</th><th>kWh / ${X('year', 'ano')}</th><th>${CUR} / ${X('year', 'ano')}</th><th>${CUR} ${st().sum}</th><th>${X('Level', 'Nível')}</th></tr>`;
   for (const r of stat.cooling.filter(x => x.schedule !== 'not cooled'))
-    h += `<tr><td>${rn(r.room)}<div class="small mut">${r.cooling_hours} h ${X('on', 'ligado')} · ${X('peak', 'pico')} ${nf(r.peak_cooling_kW, 1)} kW → ${nf(r.suggested_AC_BTU_h)} BTU/h</div></td><td>${nf(r.electricity_kWh_year)}</td><td>R$ ${nf(r.cost_BRL_year)}</td><td>R$ ${nf(r.cost_BRL_summer_Dec_Feb)}</td><td>${chip('cooling_kwh_m2', r.kWh_per_m2_year)}</td></tr>`;
-  h += `<tr><td><b>Total</b></td><td><b>${nf(A.electricity_kWh_year)}</b></td><td><b>R$ ${nf(A.cost_BRL_year)}</b></td><td></td><td></td></tr></table>`;
+    h += `<tr><td>${rn(r.room)}<div class="small mut">${r.cooling_hours} h ${X('on', 'ligado')} · ${X('peak', 'pico')} ${nf(r.peak_cooling_kW, 1)} kW → ${nf(r.suggested_AC_BTU_h)} BTU/h</div></td><td>${nf(r.electricity_kWh_year)}</td><td>${CUR} ${nf(r.cost_BRL_year)}</td><td>${CUR} ${nf(r.cost_BRL_summer_Dec_Feb)}</td><td>${chip('cooling_kwh_m2', r.kWh_per_m2_year)}</td></tr>`;
+  h += `<tr><td><b>Total</b></td><td><b>${nf(A.electricity_kWh_year)}</b></td><td><b>${CUR} ${nf(A.cost_BRL_year)}</b></td><td></td><td></td></tr></table>`;
   h += `<div class="small mut">${X('Sensible cooling only (no dehumidification), so real bills are higher. The peak kW is the heat to remove at the hottest hour; BTU/h adds 10% margin and rounds up to a catalogue size. 1 kW = 3,412 BTU/h.',
         'Só refrigeração sensível (sem desumidificação), então as contas reais são maiores. O pico em kW é o calor a retirar na hora mais quente; o BTU/h soma 10% de margem e arredonda para um tamanho de catálogo. 1 kW = 3.412 BTU/h.')}</div>`;
+  if (H.enabled) {
+    h += `<h3>${X('Cost of heating in winter', 'Custo de aquecer no inverno')}</h3><div class="small">`
+       + X(`Fuel or electricity to hold each room at ${H.setpoint_C} °C while it is in use. Efficiency ${nf(H.efficiency, 2)}, price <b>${CUR} ${nf(H.price_per_kWh, 2)}/kWh</b>.`,
+           `Combustível ou eletricidade para manter cada ambiente a ${H.setpoint_C} °C enquanto está em uso. Eficiência ${nf(H.efficiency, 2)}, preço de <b>${CUR} ${nf(H.price_per_kWh, 2)}/kWh</b>.`) + '</div>';
+    h += `<table><tr><th>${X('Room', 'Ambiente')}</th><th>kWh / ${X('year', 'ano')}</th><th>${CUR} / ${X('year', 'ano')}</th><th>${X('Peak kW', 'Pico kW')}</th><th>${X('Level', 'Nível')}</th></tr>`;
+    for (const r of stat.cooling.filter(x => x.heating_fuel_kWh_year > 0))
+      h += `<tr><td>${rn(r.room)}</td><td>${nf(r.heating_fuel_kWh_year)}</td><td>${CUR} ${nf(r.heating_cost_year)}</td><td>${nf(r.peak_heating_kW, 1)}</td><td>${chip('heating_kwh_m2', r.heating_kWh_per_m2_year)}</td></tr>`;
+    h += `<tr><td><b>Total</b></td><td><b>${nf(H.fuel_kWh_year)}</b></td><td><b>${CUR} ${nf(H.cost_year)}</b></td><td></td><td></td></tr></table>`;
+  }
+  if (COLD) h += `<div class="warn">${X('Cold climate: the adaptive comfort model does not apply, so the comfortable-hours percentage is shown but not rated; use the heating energy instead.',
+        'Clima frio: o modelo de conforto adaptativo não se aplica, então a porcentagem de horas confortáveis é mostrada mas não avaliada; use a energia de aquecimento.')}</div>`;
   return h;
 }
 
@@ -405,12 +426,12 @@ function buildYear() {
   const room = X('Room', 'Ambiente'), verdict = X('Verdict', 'Veredito');
   let h = `<div class="small mut">${X('Coloured tags tell you how good each number is (hover for the meaning). The “What’s good?” tab explains every scale and its source.',
     'As etiquetas coloridas dizem o quão bom é cada número (passe o mouse para ver o significado). A aba “O que é bom?” explica cada escala e sua fonte.')}</div>`;
-  h += `<h3>${X('Overall level of each room (1 = bad … 5 = excellent)', 'Nível geral de cada ambiente (1 = péssimo … 5 = excelente)')}</h3><table>${th(room, X('Overall', 'Geral'), X('Cooling R$/yr', 'Climatização R$/ano'))}`;
+  h += `<h3>${X('Overall level of each room (1 = bad … 5 = excellent)', 'Nível geral de cada ambiente (1 = péssimo … 5 = excelente)')}</h3><table>${th(room, X('Overall', 'Geral'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []))}`;
   const allLevels = [];
   for (const o of stat.openings) { const lv = roomLevels(o.room); if (!lv.length) continue; allLevels.push(...lv);
     const cr = stat.cooling.find(c => c.room === o.room);
-    h += `<tr><td>${rn(o.room)}</td><td>${overallChip(lv)}</td><td>${cr && cr.schedule !== 'not cooled' ? 'R$ ' + nf(cr.cost_BRL_year) : '–'}</td></tr>`; }
-  h += `<tr><td><b>${X('Whole house', 'Casa inteira')}</b></td><td>${overallChip(allLevels)}</td><td><b>R$ ${nf(stat.cooling_assumptions.cost_BRL_year)}</b></td></tr></table>`;
+    h += `<tr><td>${rn(o.room)}</td><td>${overallChip(lv)}</td><td>${cr && cr.schedule !== 'not cooled' ? CUR + ' ' + nf(cr.cost_BRL_year) : '–'}</td>${HEAT ? `<td>${cr && cr.heating_fuel_kWh_year > 0 ? CUR + ' ' + nf(cr.heating_cost_year) : '–'}</td>` : ''}</tr>`; }
+  h += `<tr><td><b>${X('Whole house', 'Casa inteira')}</b></td><td>${overallChip(allLevels)}</td><td><b>${CUR} ${nf(stat.cooling_assumptions.cost_BRL_year)}</b></td>${HEAT ? `<td><b>${CUR} ${nf(stat.cooling_assumptions.heating.cost_year)}</b></td>` : ''}</tr></table>`;
   h += `<div class="small mut">${X('Overall = average of each room level on each check below (daylight, lamps, sun, comfort, hot / cold day, ventilation, cooling cost).',
     'Geral = média do nível do ambiente em cada verificação abaixo (luz natural, lâmpadas, sol, conforto, dia quente / frio, ventilação, custo de climatização).')}</div>`;
   h += `<h3>${X('Is there enough daylight? (NBR 15575 test: room centre, lamps off)', 'Há luz natural suficiente? (ensaio da NBR 15575: centro do ambiente, lâmpadas apagadas)')}</h3><table>${th(room, 'Lux', verdict)}`;
@@ -476,9 +497,9 @@ function lampTable() {
 
 function buildGood() {
   const groups = [
-    [X('Daylight inside the rooms', 'Luz natural dentro dos ambientes'), ['daylight_nbr_living', 'daylight_nbr_wet', 'sda_dwelling', 'sda300', 'ase', 'lamps_off', 'sun_hours_window'], true],
+    [X('Daylight inside the rooms', 'Luz natural dentro dos ambientes'), ['daylight_nbr_living', 'daylight_nbr_wet', 'sda_dwelling', 'sda300', 'ase', 'lamps_off', 'sun_hours_window', 'leed_daylight'], true],
     [X('Windows and fresh air', 'Janelas e ar fresco'), ['vent_effective', 'glazing_ratio', 'cross_vent', 'wind_speed']],
-    [X('Temperature and cooling cost', 'Temperatura e custo de climatização'), ['comfort_pct', 'nbr_summer', 'nbr_winter', 'peak_temp', 'lowest_temp', 'cooling_kwh_m2']],
+    [X('Temperature and cooling cost', 'Temperatura e custo de climatização'), [...(COLD ? [] : ['comfort_pct']), 'nbr_summer', 'nbr_winter', 'peak_temp', 'lowest_temp', 'cooling_kwh_m2', ...(HEAT ? ['heating_kwh_m2'] : [])]],
     [X('Sun on the outside of the house', 'Sol por fora da casa'), ['wall_sun_summer', 'wall_sun_winter']],
     [X('Walls and roof (NBR 15575 simplified method)', 'Paredes e cobertura (método simplificado da NBR 15575)'), ['wall_u', 'wall_ct', 'roof_u']],
   ];
@@ -511,16 +532,66 @@ function buildMat() {
   const walls = [...new Set(stat.scenarios.map(s => s.wall))], roofs = [...new Set(stat.scenarios.map(s => s.roof))];
   h += `<table><tr><th>${X('Roof \\ Wall', 'Cobertura \\ Parede')}</th>` + walls.map(w => { const s = stat.scenarios.find(x => x.wall === w); return `<th title="${esc(lab(s.wall_label, s.wall_label_pt))}">${w}</th>`; }).join('') + '</tr>';
   for (const rk of roofs) { const sr = stat.scenarios.find(s => s.roof === rk), rl = lab(sr.roof_label, sr.roof_label_pt);
-    h += `<tr><td title="${esc(rl)}">${rl.length > 38 ? esc(rl.slice(0, 36)) + '…' : esc(rl)}</td>` + walls.map(w => { const s = stat.scenarios.find(x => x.wall === w && x.roof === rk); return `<td>${nf(s.avg_comfort_hours)} h<br><span class="small mut">R$ ${nf(s.cooling_BRL_year)}/${X('yr', 'ano')}</span></td>`; }).join('') + '</tr>'; }
+    h += `<tr><td title="${esc(rl)}">${rl.length > 38 ? esc(rl.slice(0, 36)) + '…' : esc(rl)}</td>` + walls.map(w => { const s = stat.scenarios.find(x => x.wall === w && x.roof === rk); return `<td>${nf(s.avg_comfort_hours)} h<br><span class="small mut">${CUR} ${nf(s.cooling_BRL_year)}/${X('yr', 'ano')}${HEAT ? ` · ${CUR} ${nf(s.heating_cost_year)}/${X('yr', 'ano')}` : ''}</span></td>`; }).join('') + '</tr>'; }
   h += `</table><div class="small mut">${X('brick9 = standard 9 cm 8-hole block wall (13 cm with plaster), brick14 = 14 cm brick (18 cm with plaster), block14 = concrete block.',
     'brick9 = parede de bloco padrão de 9 cm e 8 furos (13 cm com reboco), brick14 = tijolo de 14 cm (18 cm com reboco), block14 = bloco de concreto.')}</div>`;
   $('tab-mat').innerHTML = h;
 }
 
-buildYear(); buildGood(); buildMat();
+
+// ---------------------------------------------------------------- upgrades, LEED and method tabs ---------------------------------------
+const CONF_COL = { verified: '#2e9e5b', typical: '#f2c94c', assumption: '#f2994a' };
+const confChip = c => `<span class="chip" style="background:${CONF_COL[c]}">${X({ verified: 'verified', typical: 'typical', assumption: 'assumption' }[c], { verified: 'verificado', typical: 'típico', assumption: 'suposição' }[c])}</span>`;
+function buildUp() {
+  const R = stat.retrofits || [], cat = stat.retrofit_catalogue || {}, L = stat.leed || {};
+  const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>';
+  let h = `<div class="small">${X('Each upgrade is simulated over the whole year and compared with the house as it is today. Roof wool lies on top of the ceiling; sealing = rubber gaskets and brush seals on frames and doors; fixed brise = horizontal projection over each window; movable blinds close when the sun on the window is strong.',
+    'Cada melhoria é simulada no ano inteiro e comparada com a casa como ela é hoje. A lã fica sobre o forro; vedação = borrachas e escovas nas esquadrias e portas; brise fixo = projeção horizontal sobre cada janela; persianas móveis fecham quando o sol na janela é forte.')}</div>`;
+  h += `<h3>${X('Results by upgrade', 'Resultados por melhoria')}</h3><table>${th(X('Upgrade', 'Melhoria'), X('Comfort', 'Conforto'), X('Hottest', 'Máxima'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []), X('Bill change', 'Variação da conta'))}`;
+  for (const r of R) {
+    const d = r.d_total_cost, col = d < -1 ? '#2e9e5b' : '#9aa5b1';
+    h += `<tr><td><b>${LANG === 'pt' ? r.package_pt : r.package}</b><div class="small mut">${LANG === 'pt' ? r.what_pt : r.what_en}</div></td><td>${nf(r['avg_comfort_%'], 1)}%</td><td>${nf(r.avg_peak_T, 1)}°C</td><td>${CUR} ${nf(r.cooling_cost_year)}</td>${HEAT ? `<td>${CUR} ${nf(r.heating_cost_year)}</td>` : ''}<td><span class="chip" style="background:${col}">${d > 0 ? '+' : ''}${CUR} ${nf(d)}</span></td></tr>`;
+  }
+  h += `</table><div class="small mut">${X('Negative = saving per year. Upgrade prices are not included: divide a quotation by the yearly saving to get the payback time.', 'Negativo = economia por ano. Os preços das melhorias não estão incluídos: divida um orçamento pela economia anual para obter o retorno.')}</div>`;
+  const wm = stat.retrofit_wool || [];
+  if (wm.length) {
+    const mms = [...new Set(wm.map(x => x.mm))];
+    h += `<h3>${X('Which wool, how thick? (change in yearly bill)', 'Qual lã, que espessura? (variação na conta anual)')}</h3><table><tr><th>${X('Wool', 'Lã')}</th>${mms.map(m => `<th>${m} mm</th>`).join('')}</tr>`;
+    for (const wt of [...new Set(wm.map(x => x.wool))]) {
+      const c = (cat.wools || {})[wt] || {};
+      h += `<tr><td>${LANG === 'pt' ? c.pt : c.en}<div class="small mut">λ ${nf(c.lambda, 3)}</div></td>${mms.map(m => { const x = wm.find(y => y.wool === wt && y.mm === m); return `<td>${CUR} ${nf(x.d_total_cost)}</td>`; }).join('')}</tr>`;
+    }
+    h += '</table>';
+  }
+  h += `<h3>${X('Values used and how reliable they are', 'Valores usados e quão confiáveis são')}</h3><table><tr><th>${X('Measure', 'Medida')}</th><th>${X('Value', 'Valor')}</th><th>${X('Reliability', 'Confiança')}</th></tr>`;
+  const nm = o => LANG === 'pt' ? o.pt : o.en;
+  for (const c of Object.values(cat.wools || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>λ ${nf(c.lambda, 3)} W/m·K</td><td>${confChip(c.confidence)}</td></tr>`;
+  for (const c of Object.values(cat.glazings || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>U ${nf(c.u, 1)}, g ${nf(c.g, 2)}, VT ${nf(c.vt, 2)}</td><td>${confChip(c.confidence)}</td></tr>`;
+  if (cat.sealing) h += `<tr><td title="${esc(cat.sealing.source)}">${nm(cat.sealing)}</td><td>−${nf(cat.sealing.ach_reduction * 100)}% ${X('air changes', 'trocas de ar')}</td><td>${confChip(cat.sealing.confidence)}</td></tr>`;
+  for (const c of Object.values(cat.shading || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>${c.closed_gain_factor ? X('closed gain', 'ganho fechado') + ' ×' + c.closed_gain_factor : '—'}</td><td>${confChip(c.confidence)}</td></tr>`;
+  h += `</table><div class="small mut">${X('Hover a name to see the source of the value.', 'Passe o mouse sobre o nome para ver a fonte do valor.')}</div>`;
+  h += `<h3>${X('LEED daylight pre-assessment (IES LM-83)', 'Pré-avaliação de luz natural LEED (IES LM-83)')}</h3><div class="small">${X('LEED v4.1 daylight credit, Option 1: area-weighted sDA300/50% of 40% / 55% / 75% = 1 / 2 / 3 points; ASE1000,250 above 10% needs a glare strategy. Indicative only, not a certification.',
+    'Crédito de luz natural do LEED v4.1, Opção 1: sDA300/50% ponderado pela área de 40% / 55% / 75% = 1 / 2 / 3 pontos; ASE1000,250 acima de 10% exige estratégia contra ofuscamento. Apenas indicativo, não é certificação.')}</div>`;
+  h += `<table>${th(X('Room', 'Ambiente'), 'sDA300/50%', 'ASE', X('Step', 'Degrau'))}`;
+  for (const r of stat.leed_rows || []) { const whole = String(r.zone).startsWith('WHOLE');
+    h += `<tr><td>${whole ? `<b>${X('Whole house', 'Casa inteira')}</b>` : rn(r.zone)}</td><td>${nf(r['sDA300_50_%'])}% ${chip('leed_daylight', r['sDA300_50_%'])}</td><td>${nf(r['ASE1000_250_%'])}% ${chip('ase', r['ASE1000_250_%'])}</td><td>${r.points_if_alone} ${X('pt', 'pt')}</td></tr>`; }
+  h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result', 'Resultado')}:</b> ${L.points ?? '–'} / 3 ${X('daylight points', 'pontos de luz natural')} · sDA ${nf(L['sDA300_50_avg_%'], 1)}% · ASE ${nf(L['ASE1000_250_avg_%'], 1)}%</div>`;
+  $('tab-up').innerHTML = h;
+}
+function buildMeth() {
+  const M = (stat.methods || {})[LANG]; if (!M) { $('tab-meth').innerHTML = ''; return; }
+  const L = M.labels;
+  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div><h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
+  h += `<h3>${L.modules}</h3>`;
+  for (const m of M.modules)
+    h += `<div class="scale"><div class="stitle">${m.title} <span class="badge" style="background:${m.conf_color};color:#111">${L.conf}: ${m.conf_label}</span></div><div class="small">${m.text}</div><div class="small mut">${L.why}: ${m.why}</div></div>`;
+  h += `<h3>${L.refs}</h3><div class="small">` + M.references.map(([a, u]) => `• ${a} — <a href="${u}" target="_blank" style="color:var(--acc)">${u.replace(/^https?:\/\//, '').slice(0, 48)}</a>`).join('<br>') + '</div>';
+  $('tab-meth').innerHTML = h;
+}
+buildYear(); buildGood(); buildMat(); buildUp(); buildMeth();
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  for (const t of ['now', 'year', 'good', 'mat']) $('tab-' + t).classList.toggle('hide', t !== b.dataset.tab);
+  for (const t of ['now', 'year', 'good', 'mat', 'up', 'meth']) $('tab-' + t).classList.toggle('hide', t !== b.dataset.tab);
 });
 
 // ---------------------------------------------------------------- controls ---------------------------------------
@@ -548,9 +619,11 @@ function play(kind) {
 }
 $('playDay').onclick = () => play('day'); $('playYear').onclick = () => play('year');
 
-const VIEWS = { front: [4.5, 4, 24, 4.5, 1.5, -6], aerial: [30, 24, 22, 3.5, 0, -10], top: [4.5, 46, -10.2, 4.5, 0, -10.5],
-                east: [-34, 9, -10.5, 4.5, 1.5, -10.5], west: [42, 9, -10.5, 4.5, 1.5, -10.5], back: [4.5, 12, -46, 4.5, 1, -10.5] };
-function goView(name) { const v = VIEWS[name]; camera.position.set(v[0], v[1], v[2]); controls.target.set(v[3], v[4], v[5]); controls.update(); }
+// camera positions are relative to the centre of the building (offset x, y(up), z(north)) and scale with its size
+const VIEWS = { front: [[0, 4, 34.5], [0, 0.5, 4.5]], aerial: [[25.5, 24, 32.5], [-1, -1, 0.5]], top: [[0, 46, 0.3], [0, -1, 0]],
+                east: [[-38.5, 9, 0], [0, 0.5, 0]], west: [[37.5, 9, 0], [0, 0.5, 0]], back: [[0, 12, -35.5], [0, 0, 0]] };
+function goView(name) { const [o, tg] = VIEWS[name], k = SK; camera.position.set(CENTER.x + o[0] * k, Math.max(o[1] * k, 3), CENTER.z + o[2] * k);
+  controls.target.set(CENTER.x + tg[0] * k, CENTER.y + tg[1] * k, CENTER.z + tg[2] * k); controls.update(); }
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => goView(b.dataset.v));
 goView('aerial');
 $('seasonRow').style.opacity = 0.4;
@@ -584,6 +657,16 @@ function applyStatic() {
   document.querySelectorAll('[data-pt]').forEach(el => { if (el.dataset.en === undefined) el.dataset.en = el.innerHTML; el.innerHTML = LANG === 'pt' ? el.dataset.pt : el.dataset.en; });
   for (const [btn, panel, en, pt] of [['tgLeft', 'left', 'Controls', 'Controles'], ['tgRight', 'right', 'Results', 'Resultados']])
     $(btn).textContent = `${X(en, pt)} ${$(panel).classList.contains('hide') ? '▸' : '▾'}`;
+  document.querySelectorAll('[data-pt]').forEach(el => { if (CUR !== 'R$') el.innerHTML = el.innerHTML.replaceAll('R$', CUR); });
+  const south = stat.site.south;
+  const setB = (sel, en, pt) => { const b = document.querySelector(sel); if (b) b.innerHTML = X(en, pt); };
+  setB('[data-p="355,12"]', south ? 'Summer sun<br>21 Dec' : 'Winter sun<br>21 Dec', south ? 'Sol de verão<br>21 dez' : 'Sol de inverno<br>21 dez');
+  setB('[data-p="172,12"]', south ? 'Winter sun<br>21 Jun' : 'Summer sun<br>21 Jun', south ? 'Sol de inverno<br>21 jun' : 'Sol de verão<br>21 jun');
+  if (!PROJ.has_street) {
+    setB('[data-v="front"]', 'North side', 'Lado norte'); setB('[data-v="east"]', 'East side', 'Lado leste');
+    setB('[data-v="west"]', 'West side', 'Lado oeste'); setB('[data-v="back"]', 'South side', 'Lado sul');
+    setB('#hint', 'Drag to rotate, wheel to zoom, right-drag to move. North is toward the camera in the “North side” view.', 'Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte fica voltado para a câmera na vista “Lado norte”.');
+  }
   $('langPT').classList.toggle('on', LANG === 'pt'); $('langEN').classList.toggle('on', LANG === 'en');
   compassText().forEach(([tx], i) => setSprite(compassSprites[i], tx));
   zoneNames.forEach(zn => setSprite(zoneMeshes[zn].sprite, rn(zn)));
@@ -591,10 +674,10 @@ function applyStatic() {
 }
 function setLang(l) {
   LANG = l; SC = stat.scales[l]; localStorage.setItem('lang', l);
-  applyStatic(); buildYear(); buildGood(); buildMat(); refresh();
+  applyStatic(); buildYear(); buildGood(); buildMat(); buildUp(); buildMeth(); refresh();
 }
 $('langPT').onclick = () => setLang('pt'); $('langEN').onclick = () => setLang('en');
 fetch('reports/Relatorio_Casa.pdf', { method: 'HEAD' }).then(r => { if (!r.ok) $('pdfLink').style.display = 'none'; }).catch(() => { $('pdfLink').style.display = 'none'; });
 applyStatic(); refresh();
-window.__viewer = { setLang, refresh, sunLine, get LANG() { return LANG; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
+window.__viewer = { setLang, refresh, sunLine, CENTER, SK, get LANG() { return LANG; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });

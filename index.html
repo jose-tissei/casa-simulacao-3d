@@ -86,11 +86,11 @@
     <button data-v="front" data-pt="Rua">Street</button><button data-v="aerial" data-pt="Aérea">Aerial</button><button data-v="top" data-pt="Topo">Top</button>
     <button data-v="east" data-pt="Lado esquerdo">Left side</button><button data-v="west" data-pt="Lado direito">Right side</button><button data-v="back" data-pt="Fundos">Back</button>
   </div>
-  <div class="small mut" data-pt="Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte é o lado da rua.">Drag to rotate, wheel to zoom, right-drag to move. North is the street side.</div>
+  <div id="hint" class="small mut" data-pt="Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte é o lado da rua.">Drag to rotate, wheel to zoom, right-drag to move. North is the street side.</div>
 </div>
 
 <div id="right" class="panel">
-  <div class="tabs"><button data-tab="now" class="on" data-pt="Agora">Now</button><button data-tab="year" data-pt="Ano todo">Whole year</button><button data-tab="good" data-pt="O que é bom?">What's good?</button><button data-tab="mat" data-pt="Materiais">Materials</button></div>
+  <div class="tabs"><button data-tab="now" class="on" data-pt="Agora">Now</button><button data-tab="year" data-pt="Ano todo">Whole year</button><button data-tab="good" data-pt="O que é bom?">What's good?</button><button data-tab="mat" data-pt="Materiais">Materials</button><button data-tab="up" data-pt="Melhorias">Upgrades</button><button data-tab="meth" data-pt="Método">Method</button></div>
 
   <div id="tab-now">
     <div class="row"><div><div class="mut small" data-pt="Sol">Sun</div><div id="sunInfo" class="big"></div></div>
@@ -103,6 +103,8 @@
   <div id="tab-year" class="hide"></div>
   <div id="tab-good" class="hide"></div>
   <div id="tab-mat" class="hide"></div>
+  <div id="tab-up" class="hide"></div>
+  <div id="tab-meth" class="hide"></div>
 </div>
 
 <div id="legend" class="panel"><div id="legendTitle" class="small"></div><div id="bar"></div><div id="legendScale" class="small mut"></div></div>
