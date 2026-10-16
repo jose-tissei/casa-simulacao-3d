@@ -583,6 +583,15 @@ function buildUp() {
   for (const r of stat.leed_rows || []) { const whole = String(r.zone).startsWith('WHOLE');
     h += `<tr><td>${whole ? `<b>${X('Whole house', 'Casa inteira')}</b>` : rn(r.zone)}</td><td>${nf(r['sDA300_50_%'])}% ${chip('leed_daylight', r['sDA300_50_%'])}</td><td>${nf(r['ASE1000_250_%'])}% ${chip('ase', r['ASE1000_250_%'])}</td><td>${r.points_if_alone} ${X('pt', 'pt')}</td></tr>`; }
   h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result', 'Resultado')}:</b> ${L.points ?? '–'} / 3 ${X('daylight points', 'pontos de luz natural')} · sDA ${nf(L['sDA300_50_avg_%'], 1)}% · ASE ${nf(L['ASE1000_250_avg_%'], 1)}%</div>`;
+  const RD = stat.radiance;
+  if (RD) {
+    h += `<h3>${X('Reference engine: Radiance', 'Motor de referência: Radiance')}</h3><div class="small">${X('Same rooms and sensors, recalculated with Radiance (Perez sky, 4 light bounces, LM-83 blind rule): the validated engine behind ClimateStudio and Honeybee. The fast engine overestimates light deep inside rooms.',
+      'Mesmos ambientes e sensores, recalculados com o Radiance (céu de Perez, 4 reflexões, regra de persianas da LM-83): o motor validado por trás do ClimateStudio e do Honeybee. O motor rápido superestima a luz no fundo dos ambientes.')}</div>`;
+    h += `<table>${th(X('Room', 'Ambiente'), X('sDA fast', 'sDA rápido'), 'sDA Radiance', 'ASE Radiance', X('mean lux', 'lux médio'))}`;
+    for (const r of RD.rows || []) if (['living', 'bedroom', 'kitchen'].includes(r.kind))
+      h += `<tr><td>${rn(r.zone)}</td><td>${nf(r['fast_sDA300_%'])}%</td><td>${nf(r['sDA300_LM83_%'])}% ${chip('leed_daylight', r['sDA300_LM83_%'])}</td><td>${nf(r['ASE1000_250h_%'])}%</td><td>${nf(r.mean_lux_8_18)} <span class="mut">(${nf(r.fast_mean_lux)})</span></td></tr>`;
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result with Radiance', 'Resultado com o Radiance')}:</b> ${RD.leed_points} / 3 ${X('daylight points', 'pontos de luz natural')} · sDA ${nf(RD['sDA300_50_avg_%'], 1)}% (${X('fast engine', 'motor rápido')} ${nf(RD.fast_engine?.['sDA300_50_avg_%'], 1)}%) · ASE ${nf(RD['ASE1000_250_avg_%'], 1)}% · ${X('sky check', 'checagem do céu')} ${RD.sky_check_ratio}</div>`;
+  }
   $('tab-up').innerHTML = h;
 }
 function buildMeth() {
