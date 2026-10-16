@@ -583,6 +583,16 @@ function buildUp() {
   for (const r of stat.leed_rows || []) { const whole = String(r.zone).startsWith('WHOLE');
     h += `<tr><td>${whole ? `<b>${X('Whole house', 'Casa inteira')}</b>` : rn(r.zone)}</td><td>${nf(r['sDA300_50_%'])}% ${chip('leed_daylight', r['sDA300_50_%'])}</td><td>${nf(r['ASE1000_250_%'])}% ${chip('ase', r['ASE1000_250_%'])}</td><td>${r.points_if_alone} ${X('pt', 'pt')}</td></tr>`; }
   h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result', 'Resultado')}:</b> ${L.points ?? '–'} / 3 ${X('daylight points', 'pontos de luz natural')} · sDA ${nf(L['sDA300_50_avg_%'], 1)}% · ASE ${nf(L['ASE1000_250_avg_%'], 1)}%</div>`;
+  const EP = stat.energyplus;
+  if (EP) {
+    const eb = EP.base || {};
+    h += `<h3>${X('Reference engine: EnergyPlus', 'Motor de referência: EnergyPlus')}</h3><div class="small">${X('Every package recalculated with EnergyPlus (ASHRAE 140 validated): heat balance of every surface, shared walls, attic above each room, real eaves, wind-driven window ventilation. Same set point, schedules and COP as the fast engine; no internal gains in either.',
+      'Todos os pacotes recalculados com o EnergyPlus (validado pela ASHRAE 140): balanço de calor de cada superfície, paredes compartilhadas, forro acima de cada ambiente, beirais reais, ventilação por vento nas janelas. Mesmo ponto de ajuste, horários e COP do motor rápido; sem ganhos internos em ambos.')}</div>`;
+    h += `<table>${th(X('Package', 'Pacote'), X('Comfort without A/C', 'Conforto sem ar-cond.'), X('A/C kWh fast', 'Ar-cond. kWh rápido'), X('A/C kWh EnergyPlus', 'Ar-cond. kWh EnergyPlus'), X('Saving/yr', 'Economia/ano'))}`;
+    for (const r of EP.scenarios || []) { const f = R.find(x => x.package === r.package) || {};
+      h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r['avg_comfort_%'], 1)}%</td><td>${nf(f.cooling_kWh_year)}</td><td>${nf(r.cooling_kWh_year)}</td><td>${r.d_total_cost ? nf(-r.d_total_cost) : '—'}</td></tr>`; }
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result with EnergyPlus', 'Resultado com o EnergyPlus')}:</b> ${X('base case', 'caso base')} ${nf(eb['ep_comfort_%'], 1)}% ${X('comfort hours', 'das horas em conforto')} (${X('fast', 'rápido')} ${nf(eb['fast_comfort_%'], 1)}%) · ${X('A/C', 'ar-cond.')} ${nf(EP.cooling_kWh_year)} kWh (${X('fast', 'rápido')} ${nf(EP.fast_cooling_kWh_year)}) · ${X('both engines rank roof insulation first', 'os dois motores colocam a isolação da cobertura em primeiro')}</div>`;
+  }
   const RD = stat.radiance;
   if (RD) {
     h += `<h3>${X('Reference engine: Radiance', 'Motor de referência: Radiance')}</h3><div class="small">${X('Same rooms and sensors, recalculated with Radiance (Perez sky, 4 light bounces, LM-83 blind rule): the validated engine behind ClimateStudio and Honeybee. The fast engine overestimates light deep inside rooms.',
