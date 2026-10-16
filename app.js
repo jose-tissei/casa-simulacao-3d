@@ -600,7 +600,7 @@ function buildUp() {
       'Casa real x casa de referência (paredes de 100 mm, cobertura de telha + câmara de ar + laje, janelas de 17% do piso): parcela das horas ocupadas com temperatura operativa entre 18 e 26 °C nos dormitórios e na sala, janelas abertas só quando ocupado (EnergyPlus + AirflowNetwork). Seção 11.4 da norma (tabelas conferidas com o projeto público).')}</div>`;
     h += `<table>${th(X('Package', 'Pacote'), 'PHFT', 'ΔPHFT', 'Tmax', 'Tmin', X('Load reduction', 'Redução da carga'), X('Level', 'Nível'))}`;
     for (const r of NB.packages || []) h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r.PHFT_real, 1)}%</td><td>${nf(r.dPHFT, 1)}</td><td>${nf(r.Tomax_real, 1)}</td><td>${nf(r.Tomin_real, 1)}</td><td>${nf(r['RedCgTT_%'], 1)}%</td><td><b>${r.level}</b></td></tr>`;
-    h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for I / S', 'para I / S')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}</div>`;
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for I / S', 'para I / S')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}${NB.generic_cp ? ' · ' + X('with generic Cp', 'com Cp genérico') + ': PHFT ' + nf(NB.generic_cp.PHFT_real, 1) + '% / ' + nf(NB.generic_cp.PHFT_ref, 1) + '%' : ''}</div>`;
   }
   const RD = stat.radiance;
   if (RD) {
@@ -618,10 +618,45 @@ function engineCards(M) {
   const card = e => `<a href="${e.url}" target="_blank" style="flex:1;min-width:130px;text-align:center;background:#fff;border-radius:6px;padding:8px;text-decoration:none;color:#111"><img loading="lazy" src="${e.logo}" style="height:28px;max-width:130px;object-fit:contain"><div style="font-size:12px"><b>${e.name}</b> ${e.version}</div><div style="font-size:11px;color:#555">${e.role}</div></a>`;
   return `<h3>${X('Reference engines', 'Motores de referência')}</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${E.map(card).join('')}</div><div class="small mut" style="margin-top:4px">${X('Logos belong to their projects and only credit the software used.', 'Os logos pertencem aos respectivos projetos e apenas creditam os programas usados.')}</div>`;
 }
+// wind CFD: how it was calculated and how far it can be trusted (setup table, numerical verification, figures)
+function cfdDetails() {
+  const C = stat.cfd; if (!C) return '';
+  const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>';
+  const S = C.setup, V = C.study, P = C.spread, vb = V.validation_box || {}, mh = V.mesh, u = V.uncertainty_cp, nfd = (v, d = 2) => nf(v, d);
+  const row = (a, b) => `<tr><td>${a}</td><td style="text-align:left">${b}</td></tr>`;
+  const img = n => `<img loading="lazy" src="assets/cfd/${n}_${LANG}.png" style="width:100%;border-radius:6px;background:#fff;margin:6px 0">`;
+  let h = `<h3>${X('Wind CFD (OpenFOAM): how it was calculated', 'CFD do vento (OpenFOAM): como foi calculado')}</h3><div class="small">${X(
+    'The wind pressure on every window, door and eave opening comes from a steady RANS simulation of the house in a wind-engineering domain, repeated for each wind direction. The pressure coefficients feed the EnergyPlus airflow network (cross ventilation, NBR 15575 PHFT).',
+    'A pressão do vento em cada janela, porta e abertura de beiral vem de uma simulação RANS permanente da casa num domínio de engenharia de vento, repetida para cada direção. Os coeficientes de pressão alimentam a rede de fluxo de ar do EnergyPlus (ventilação cruzada, PHFT da NBR 15575).')}</div>`;
+  h += `<table>${row(X('Wind directions', 'Direções do vento'), `${S.directions} (${X('every', 'a cada')} ${nfd(S.step_deg, 0)}°)`)}`
+    + row(X('House geometry', 'Geometria da casa'), X('closed envelope rebuilt from the IFC: both roofs with valley and ridge (' + nfd(S.domain.H_m, 1) + ' m), eaves, carport and porch roofs as thin plates; windows and doors closed', 'invólucro fechado reconstruído do IFC: os dois telhados com vale e cumeeira (' + nfd(S.domain.H_m, 1) + ' m), beirais, telhados do carport e das varandas como placas finas; janelas e portas fechadas'))
+    + row(X('Domain', 'Domínio'), `${S.domain.upstream_H}H ${X('upstream', 'a montante')}, ${S.domain.downstream_H}H ${X('downstream', 'a jusante')}, ${S.domain.sides_H}H ${X('sideways', 'nas laterais')}, ${S.domain.top_H}H ${X('above', 'acima')} (H = ${nfd(S.domain.H_m, 1)} m)`)
+    + row(X('Mesh', 'Malha'), `${S.mesh.mesher}; ${X('background cell', 'célula de fundo')} ${S.mesh.background_cell_m} m, ${S.mesh.surface_refinement_levels}; ${nf(S.mesh.cells_min / 1000)}–${nf(S.mesh.cells_max / 1000)} ${X('thousand cells per direction', 'mil células por direção')}`)
+    + row(X('Approach wind', 'Vento de aproximação'), `${X('log-law atmospheric boundary layer', 'camada limite atmosférica logarítmica')}, ${S.inlet.Uref_m_s} m/s ${X('at', 'a')} ${S.inlet.Zref_m} m, z0 = ${S.inlet.z0_m} m (${X('suburban', 'suburbano')})`)
+    + row(X('Turbulence model', 'Modelo de turbulência'), `${S.turbulence} (${X('standard k-epsilon', 'k-épsilon padrão')})`)
+    + row(X('Solver', 'Solucionador'), `${S.solver}; ${S.schemes}`)
+    + row(X('Walls', 'Paredes'), S.walls)
+    + row(X('Convergence', 'Convergência'), `${S.convergence.residuals}; ${X('median', 'mediana')} ${S.convergence.iterations_median} ${X('iterations', 'iterações')}`)
+    + row('y+', `${X('mean about', 'média cerca de')} ${nf(S.yplus_mean_median, 0)} (${X('wall functions, usual for full-scale buildings', 'funções de parede, usual em edificações em escala real')})`)
+    + row(X('Probes', 'Pontos de leitura'), `${S.probe_sites} ${X('openings:', 'aberturas:')} ${S.probes}`)
+    + row('Cp', `${S.cp_definition}. ${X('Factor at 0.75 / 1.05 / 1.6 / 3.05 m', 'Fator a 0,75 / 1,05 / 1,6 / 3,05 m')}: ${Object.values(S.profile_factor_examples).join(' / ')}`) + `</table>`;
+  h += `<h3>${X('How far it can be trusted', 'Quanto confiar')}</h3><table>${th(X('Check', 'Verificação'), X('Result', 'Resultado'))}`
+    + row(X('Plain box vs Eurocode (EN 1991-1-4)', 'Caixa simples x Eurocódigo (EN 1991-1-4)'), `${X('windward', 'barlavento')} ${nfd(vb.windward_cfd)} ${X('vs', 'contra')} ${nfd(vb.windward_EN1991)}; ${X('leeward', 'sotavento')} ${nfd(vb.leeward_cfd)} ${X('vs', 'contra')} ${nfd(vb.leeward_EN1991)}`)
+    + row(X('Mesh (2.0 / 1.2 / 0.8 m)', 'Malha (2,0 / 1,2 / 0,8 m)'), `rms ${nfd(mh.coarse_vs_medium.rms)} / ${nfd(mh.medium_vs_fine.rms)}: ${X('does not shrink with refinement, error about ±0.1', 'não diminui com o refino, erro de cerca de ±0,1')}`)
+    + row(X('Roughness 0.1 / 1.0 m', 'Rugosidade 0,1 / 1,0 m'), `rms ${nfd(V.roughness['z0_0.1_vs_0.3'].rms)} / ${nfd(V.roughness['z0_1.0_vs_0.3'].rms)}`)
+    + row(X('Domain 1.5x larger', 'Domínio 1,5x maior'), `rms ${nfd(V.domain['1.5x_vs_1x'].rms)}`)
+    + row(X('Turbulence models', 'Modelos de turbulência'), `realizable k-ε ${nfd(V.turbulence.realizableKE_vs_kEpsilon.rms)}, k-ω SST ${nfd(V.turbulence.kOmegaSST_vs_kEpsilon.rms)}; ${X('box error', 'erro na caixa')}: k-ε ${nfd(vb.models?.kEpsilon?.error)}, rke ${nfd(vb.models?.realizableKE?.error)}, SST ${nfd(vb.models?.kOmegaSST?.error)}`)
+    + row(X('Cp uncertainty per opening', 'Incerteza do Cp por abertura'), `${X('median', 'mediana')} ±${nfd(u.median)}, 95% ±${nfd(u.p95)}`)
+    + (P ? row(X('Effect on PHFT of moving all Cp by the uncertainty', 'Efeito no PHFT de mover todos os Cp pela incerteza'), `${X('dwelling', 'moradia')} ${nf(P.minus.PHFT_real, 1)}% … ${nf(P.plus.PHFT_real, 1)}%, ${X('reference', 'referência')} ${nf(P.minus.PHFT_ref, 1)}% … ${nf(P.plus.PHFT_ref, 1)}%`) : '')
+    + (C.check ? row(X('Difference to the generic Cp / to the first (flat-roof) version', 'Diferença para o Cp genérico / para a primeira versão (telhado plano)'), `rms ${nfd(C.check.vs_generic_rmse)} / ${nfd(C.check.vs_simple_rmse)}`) : '') + `</table>`;
+  h += `<div class="small mut" style="margin-top:6px">${X('Limits: no neighbours, lot walls or trees yet; steady RANS gives mean pressures only (no gusts); the mesh error is not shown to shrink, so ±0.1 in Cp is the honest resolution.', 'Limites: ainda sem vizinhos, muros do lote nem árvores; o RANS permanente dá só pressões médias (sem rajadas); não se viu o erro de malha diminuir, então ±0,1 no Cp é a resolução honesta.')}</div>`;
+  h += img('cfd_geometry') + img('cfd_verification') + img('cfd_cp_compare');
+  return h;
+}
 function buildMeth() {
   const M = (stat.methods || {})[LANG]; if (!M) { $('tab-meth').innerHTML = ''; return; }
   const L = M.labels;
-  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div>${engineCards(M)}<h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
+  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div>${engineCards(M)}${cfdDetails()}<h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
   h += `<h3>${L.modules}</h3>`;
   for (const m of M.modules)
     h += `<div class="scale"><div class="stitle">${m.title} <span class="badge" style="background:${m.conf_color};color:#111">${L.conf}: ${m.conf_label}</span></div><div class="small">${m.text}</div><div class="small mut">${L.why}: ${m.why}</div></div>`;
