@@ -593,6 +593,15 @@ function buildUp() {
       h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r['avg_comfort_%'], 1)}%</td><td>${nf(f.cooling_kWh_year)}</td><td>${nf(r.cooling_kWh_year)}</td><td>${r.d_total_cost ? nf(-r.d_total_cost) : '—'}</td></tr>`; }
     h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result with EnergyPlus', 'Resultado com o EnergyPlus')}:</b> ${X('base case', 'caso base')} ${nf(eb['ep_comfort_%'], 1)}% ${X('comfort hours', 'das horas em conforto')} (${X('fast', 'rápido')} ${nf(eb['fast_comfort_%'], 1)}%) · ${X('A/C', 'ar-cond.')} ${nf(EP.cooling_kWh_year)} kWh (${X('fast', 'rápido')} ${nf(EP.fast_cooling_kWh_year)}) · ${X('both engines rank roof insulation first', 'os dois motores colocam a isolação da cobertura em primeiro')}</div>`;
   }
+  const NB = stat.nbr15575;
+  if (NB) {
+    const b = NB.base, LVN = { M: X('Minimum', 'Mínimo'), I: X('Intermediate', 'Intermediário'), S: X('Superior', 'Superior'), 'not met': X('Not met', 'Não atendido') };
+    h += `<h3>${X('NBR 15575-1:2021 by simulation (PHFT)', 'NBR 15575-1:2021 por simulação (PHFT)')}</h3><div class="small">${X('Real house vs. reference house (100 mm walls, tile + air chamber + slab roof, windows of 17% of the floor): share of occupied hours with operative temperature between 18 and 26 °C in bedrooms and living room, windows opened only when occupied (EnergyPlus + AirflowNetwork). From the public amendment draft; check the final text.',
+      'Casa real x casa de referência (paredes de 100 mm, cobertura de telha + câmara de ar + laje, janelas de 17% do piso): parcela das horas ocupadas com temperatura operativa entre 18 e 26 °C nos dormitórios e na sala, janelas abertas só quando ocupado (EnergyPlus + AirflowNetwork). Do projeto de emenda público; confira o texto final.')}</div>`;
+    h += `<table>${th(X('Package', 'Pacote'), 'PHFT', 'ΔPHFT', 'Tmax', 'Tmin', X('Load reduction', 'Redução da carga'), X('Level', 'Nível'))}`;
+    for (const r of NB.packages || []) h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r.PHFT_real, 1)}%</td><td>${nf(r.dPHFT, 1)}</td><td>${nf(r.Tomax_real, 1)}</td><td>${nf(r.Tomin_real, 1)}</td><td>${nf(r['RedCgTT_%'], 1)}%</td><td><b>${r.level}</b></td></tr>`;
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for I / S', 'para I / S')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}</div>`;
+  }
   const RD = stat.radiance;
   if (RD) {
     h += `<h3>${X('Reference engine: Radiance', 'Motor de referência: Radiance')}</h3><div class="small">${X('Same rooms and sensors, recalculated with Radiance (Perez sky, 4 light bounces, LM-83 blind rule): the validated engine behind ClimateStudio and Honeybee. The fast engine overestimates light deep inside rooms.',
