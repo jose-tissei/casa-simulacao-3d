@@ -596,8 +596,8 @@ function buildUp() {
   const NB = stat.nbr15575;
   if (NB) {
     const b = NB.base, LVN = { M: X('Minimum', 'Mínimo'), I: X('Intermediate', 'Intermediário'), S: X('Superior', 'Superior'), 'not met': X('Not met', 'Não atendido') };
-    h += `<h3>${X('NBR 15575-1:2021 by simulation (PHFT)', 'NBR 15575-1:2021 por simulação (PHFT)')}</h3><div class="small">${X('Real house vs. reference house (100 mm walls, tile + air chamber + slab roof, windows of 17% of the floor): share of occupied hours with operative temperature between 18 and 26 °C in bedrooms and living room, windows opened only when occupied (EnergyPlus + AirflowNetwork). From the public amendment draft; check the final text.',
-      'Casa real x casa de referência (paredes de 100 mm, cobertura de telha + câmara de ar + laje, janelas de 17% do piso): parcela das horas ocupadas com temperatura operativa entre 18 e 26 °C nos dormitórios e na sala, janelas abertas só quando ocupado (EnergyPlus + AirflowNetwork). Do projeto de emenda público; confira o texto final.')}</div>`;
+    h += `<h3>${X('NBR 15575-1:2021 by simulation (PHFT)', 'NBR 15575-1:2021 por simulação (PHFT)')}</h3><div class="small">${X('Real house vs. reference house (100 mm walls, tile + air chamber + slab roof, windows of 17% of the floor): share of occupied hours with operative temperature between 18 and 26 °C in bedrooms and living room, windows opened only when occupied (EnergyPlus + AirflowNetwork). Section 11.4 of the standard (tables checked against the public draft).',
+      'Casa real x casa de referência (paredes de 100 mm, cobertura de telha + câmara de ar + laje, janelas de 17% do piso): parcela das horas ocupadas com temperatura operativa entre 18 e 26 °C nos dormitórios e na sala, janelas abertas só quando ocupado (EnergyPlus + AirflowNetwork). Seção 11.4 da norma (tabelas conferidas com o projeto público).')}</div>`;
     h += `<table>${th(X('Package', 'Pacote'), 'PHFT', 'ΔPHFT', 'Tmax', 'Tmin', X('Load reduction', 'Redução da carga'), X('Level', 'Nível'))}`;
     for (const r of NB.packages || []) h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r.PHFT_real, 1)}%</td><td>${nf(r.dPHFT, 1)}</td><td>${nf(r.Tomax_real, 1)}</td><td>${nf(r.Tomin_real, 1)}</td><td>${nf(r['RedCgTT_%'], 1)}%</td><td><b>${r.level}</b></td></tr>`;
     h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for I / S', 'para I / S')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}</div>`;
@@ -613,10 +613,15 @@ function buildUp() {
   }
   $('tab-up').innerHTML = h;
 }
+function engineCards(M) {
+  const E = M.engines || []; if (!E.length) return '';
+  const card = e => `<a href="${e.url}" target="_blank" style="flex:1;min-width:130px;text-align:center;background:#fff;border-radius:6px;padding:8px;text-decoration:none;color:#111"><img src="${e.logo}" style="height:28px;max-width:130px;object-fit:contain"><div style="font-size:12px"><b>${e.name}</b> ${e.version}</div><div style="font-size:11px;color:#555">${e.role}</div></a>`;
+  return `<h3>${X('Reference engines', 'Motores de referência')}</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${E.map(card).join('')}</div><div class="small mut" style="margin-top:4px">${X('Logos belong to their projects and only credit the software used.', 'Os logos pertencem aos respectivos projetos e apenas creditam os programas usados.')}</div>`;
+}
 function buildMeth() {
   const M = (stat.methods || {})[LANG]; if (!M) { $('tab-meth').innerHTML = ''; return; }
   const L = M.labels;
-  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div><h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
+  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div>${engineCards(M)}<h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
   h += `<h3>${L.modules}</h3>`;
   for (const m of M.modules)
     h += `<div class="scale"><div class="stitle">${m.title} <span class="badge" style="background:${m.conf_color};color:#111">${L.conf}: ${m.conf_label}</span></div><div class="small">${m.text}</div><div class="small mut">${L.why}: ${m.why}</div></div>`;
