@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <title>Casa - sol, sombras, luz, energia nas paredes e conforto ao longo do ano</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220"><meta name="mobile-web-app-capable" content="yes">
 <style>
   :root { --bg:#0f1720; --panel:rgba(18,26,38,.92); --line:#2b3a4f; --txt:#e8eef6; --mut:#9fb0c5; --acc:#f5b942; }
   * { box-sizing: border-box; }
@@ -38,6 +39,30 @@
     #right { width:min(440px, calc(54vw - 10px)); max-height:calc(100% - 60px); top:44px; font-size:12px; }
     #legend { min-width:0; width:90vw; bottom:4px; }
   }
+  .closeSheet { display:none; }
+  /* ---- phone: the 3D view fills the screen, the two panels become bottom sheets opened from the top bar (one at a time) ---- */
+  @media (max-width: 700px) {
+    html, body { font-size:15px; }
+    #toggles { left:0; right:0; top:0; transform:none; justify-content:center; gap:4px; padding:max(6px, env(safe-area-inset-top)) 5px 6px; background:linear-gradient(rgba(11,18,32,.85), rgba(11,18,32,0)); }
+    #toggles button, #toggles a { min-height:42px; padding:4px 8px; font-size:13.5px; display:inline-flex; align-items:center; white-space:nowrap; }
+    #left, #right { left:0; right:0; top:auto; bottom:0; width:100%; max-height:66vh; border-radius:16px 16px 0 0; border-bottom:0; padding:12px 14px calc(14px + env(safe-area-inset-bottom)); z-index:6; box-shadow:0 -6px 24px rgba(0,0,0,.45); overscroll-behavior:contain; }
+    .closeSheet { display:block; margin:-2px 0 6px auto; min-width:48px; min-height:40px; font-size:18px; line-height:1; }
+    #legend { top:56px; bottom:auto; left:8px; right:8px; transform:none; width:auto; min-width:0; padding:6px 10px; z-index:4; pointer-events:none; }
+    #legend .small { font-size:12px; line-height:1.25; } #legend #bar { height:8px; margin:3px 0; }
+    button, .tabs button, #toggles button { min-height:44px; touch-action:manipulation; }
+    .row.small button { flex:1 1 40%; }
+    label { padding:7px 0; margin:0; display:flex; gap:10px; align-items:flex-start; line-height:1.3; }
+    label input[type=radio], label input[type=checkbox] { width:22px; height:22px; flex:none; margin:0; }
+    input[type=range] { height:36px; }
+    .small { font-size:13px; } .mut.small { font-size:13px; }
+    .tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px; scrollbar-width:none; } .tabs::-webkit-scrollbar { display:none; }
+    .tabs button { flex:0 0 auto; padding:6px 14px; white-space:nowrap; }
+    #right > div { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    table { font-size:13px; } th, td { padding:6px 6px; }
+    h3 { font-size:13px; margin-top:12px; }
+    .scale { padding:8px 10px; }
+  }
+  @media (max-width: 1000px) and (min-width: 701px) { #toggles button, #toggles a { min-height:36px; } #legend { left:10px; transform:none; width:calc(46vw - 10px); max-width:380px; bottom:10px; } .tabs { flex-wrap:wrap; } }
   .badge { display:inline-block; padding:0 6px; border-radius:8px; font-size:10px; font-weight:600; color:#fff; vertical-align:middle; }
   .scale { border:1px solid #223045; border-radius:8px; padding:6px 8px; margin:6px 0; }
   .scale .stitle { font-weight:600; margin-bottom:2px; }
@@ -51,6 +76,7 @@
 <div id="toggles"><button id="tgLeft">Controles ▾</button><button id="tgRight">Resultados ▾</button><button id="langPT" class="lang">PT</button><button id="langEN" class="lang">EN</button><a id="pdfLink" href="reports/Relatorio_Casa.pdf" target="_blank" data-pt="Relatório em PDF">PDF report</a></div>
 
 <div id="left" class="panel">
+  <button class="closeSheet" aria-label="Fechar">✕</button>
   <h3 data-pt="Data e hora">Date and time</h3>
   <div class="big" id="dateLabel"></div>
   <div class="small mut" data-pt="Dia do ano">Day of the year</div>
@@ -90,6 +116,7 @@
 </div>
 
 <div id="right" class="panel">
+  <button class="closeSheet" aria-label="Fechar">✕</button>
   <div class="tabs"><button data-tab="now" class="on" data-pt="Agora">Now</button><button data-tab="year" data-pt="Ano todo">Whole year</button><button data-tab="good" data-pt="O que é bom?">What's good?</button><button data-tab="mat" data-pt="Materiais">Materials</button><button data-tab="up" data-pt="Melhorias">Upgrades</button><button data-tab="meth" data-pt="Método">Method</button></div>
 
   <div id="tab-now">

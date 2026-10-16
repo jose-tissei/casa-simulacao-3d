@@ -662,7 +662,8 @@ $('playDay').onclick = () => play('day'); $('playYear').onclick = () => play('ye
 // camera positions are relative to the centre of the building (offset x, y(up), z(north)) and scale with its size
 const VIEWS = { front: [[0, 4, 34.5], [0, 0.5, 4.5]], aerial: [[25.5, 24, 32.5], [-1, -1, 0.5]], top: [[0, 46, 0.3], [0, -1, 0]],
                 east: [[-38.5, 9, 0], [0, 0.5, 0]], west: [[37.5, 9, 0], [0, 0.5, 0]], back: [[0, 12, -35.5], [0, 0, 0]] };
-function goView(name) { const [o, tg] = VIEWS[name], k = SK; camera.position.set(CENTER.x + o[0] * k, Math.max(o[1] * k, 3), CENTER.z + o[2] * k);
+function goView(name) { const [o, tg] = VIEWS[name], k = SK, asp = innerWidth / innerHeight, f = asp >= 1 ? 1 : Math.min(1.9, 0.62 / asp + 0.25);      // portrait screens: stand farther back so the whole house fits the width
+  camera.position.set(CENTER.x + o[0] * k * f, Math.max(o[1] * k * f, 3), CENTER.z + o[2] * k * f);
   controls.target.set(CENTER.x + tg[0] * k, CENTER.y + tg[1] * k, CENTER.z + tg[2] * k); controls.update(); }
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => goView(b.dataset.v));
 goView('aerial');
@@ -686,9 +687,29 @@ addEventListener('resize', resize); resize();
 refresh();
 // show / hide the two side panels (useful on small screens); on narrow windows start with the results panel hidden
 {
-  const tog = (btn, panel) => { $(btn).onclick = () => { const hid = $(panel).classList.toggle('hide'); $(btn).textContent = $(btn).textContent.replace(/[▾▸]/, hid ? '▸' : '▾'); }; };
-  tog('tgLeft', 'left'); tog('tgRight', 'right');
-  if (innerWidth < 800) $('tgRight').click();
+  const phone = () => matchMedia('(max-width: 700px)').matches;            // on a phone the panels are bottom sheets, one open at a time
+  const mark = (btn, panel) => { $(btn).textContent = $(btn).textContent.replace(/[▾▸]/, $(panel).classList.contains('hide') ? '▸' : '▾'); };
+  const setPanel = (btn, panel, hide) => { $(panel).classList.toggle('hide', hide); mark(btn, panel); };
+  const PANELS = [['tgLeft', 'left'], ['tgRight', 'right']];
+  for (const [btn, panel] of PANELS) $(btn).onclick = () => {
+    const hide = !$(panel).classList.contains('hide');
+    if (phone() && !hide) for (const [b2, p2] of PANELS) if (p2 !== panel) setPanel(b2, p2, true);
+    setPanel(btn, panel, hide);
+  };
+  document.querySelectorAll('.closeSheet').forEach(b => b.onclick = () => PANELS.forEach(([bt, p]) => { if (b.closest('#' + p)) setPanel(bt, p, true); }));
+  const closeAll = () => PANELS.forEach(([bt, p]) => setPanel(bt, p, true));
+  if (phone()) closeAll(); else if (innerWidth < 800) setPanel('tgRight', 'right', true);
+  // a short tap on the 3D view (not a drag or a pinch) closes the open sheet
+  let down = null;
+  renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (down && phone() && performance.now() - down.t < 350 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8) closeAll();
+    down = null;
+  });
+  if (matchMedia('(pointer: coarse)').matches) {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));          // phones: sharper than 1x but far cheaper than 3x
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+  }
 }
 // ---- static text of the page (data-pt holds the Portuguese, the original HTML is the English) and the language buttons
 function applyStatic() {
@@ -707,10 +728,11 @@ function applyStatic() {
     setB('[data-v="west"]', 'West side', 'Lado oeste'); setB('[data-v="back"]', 'South side', 'Lado sul');
     setB('#hint', 'Drag to rotate, wheel to zoom, right-drag to move. North is toward the camera in the “North side” view.', 'Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte fica voltado para a câmera na vista “Lado norte”.');
   }
+  if (matchMedia('(pointer: coarse)').matches) $('hint').innerHTML = X('One finger rotates, two fingers pinch to zoom and move. North is the street side.', 'Um dedo gira; dois dedos ampliam (pinça) e movem. O norte é o lado da rua.');
   $('langPT').classList.toggle('on', LANG === 'pt'); $('langEN').classList.toggle('on', LANG === 'en');
   compassText().forEach(([tx], i) => setSprite(compassSprites[i], tx));
   zoneNames.forEach(zn => setSprite(zoneMeshes[zn].sprite, rn(zn)));
-  const pdf = $('pdfLink'); pdf.textContent = X('PDF report', 'Relatório em PDF'); pdf.href = LANG === 'pt' ? 'reports/Relatorio_Casa.pdf' : 'reports/House_Report.pdf';
+  const pdf = $('pdfLink'); pdf.textContent = matchMedia('(max-width: 700px)').matches ? 'PDF' : X('PDF report', 'Relatório em PDF'); pdf.href = LANG === 'pt' ? 'reports/Relatorio_Casa.pdf' : 'reports/House_Report.pdf';
 }
 function setLang(l) {
   LANG = l; SC = stat.scales[l]; localStorage.setItem('lang', l);
