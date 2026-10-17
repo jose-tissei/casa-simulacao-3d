@@ -327,6 +327,8 @@ const bandRange = b => b.lo === null ? X(`below ${bf(b.hi)}`, `abaixo de ${bf(b.
 const OUTDOORS = 'OUTDOORS (for reference)';
 const fname = n => LANG === 'pt' ? (stat.facade_pt[n] ?? n) : n;
 const cItem = r => LANG === 'pt' ? r.item_pt : r.item;
+// "Calculated with" line under a heading: which engine produced the numbers (details in the Method tab)
+const etag = (...keys) => { const R = ((stat.methods || {})[LANG] || {}).engine_registry; if (!R) return ''; return `<div class="small mut" style="border-left:3px solid #7aa2c8;padding:1px 6px;margin:2px 0 6px">${X('Calculated with', 'Calculado com')}: <b>${keys.map(k => R[k].name).join(' + ')}</b> · ${X('details in the Method tab', 'detalhes na aba Método')}</div>`; };
 const unitFix = u => String(u).replace('2', '²');
 
 // the house's own values for each scale: [{name, value, text}]
@@ -397,7 +399,7 @@ const SCHED_KIND = { bedroom: ['bedrooms', 'dormitórios'], living: ['living', '
 function coolingTable() {
   const A = stat.cooling_assumptions, tar = nf(A.tariff_BRL_per_kWh, 2), H = A.heating || {};
   const sched = Object.entries(SCHED_KIND).map(([k, [en, pt]]) => `${X(en, pt)} ${A.schedules[k]}`).join(', ');
-  let h = `<h3>${X('Cost of cooling in summer (air conditioner)', 'Custo de refrigerar no verão (ar-condicionado)')}</h3><div class="small">`
+  let h = `<h3>${X('Cost of cooling in summer (air conditioner)', 'Custo de refrigerar no verão (ar-condicionado)')}</h3>${etag('fast')}<div class="small">`
         + X(`Electricity to hold each room at ${A.setpoint_C} °C while it is in use (${sched}). Efficiency COP ${nf(A.COP, 1)}, tariff <b>${CUR} ${tar}/kWh</b> (assumption).`,
             `Eletricidade para manter cada ambiente a ${A.setpoint_C} °C enquanto está em uso (${sched}). Eficiência COP ${nf(A.COP, 1)}, tarifa de <b>${CUR} ${tar}/kWh</b> (suposição).`) + '</div>';
   h += `<table><tr><th>${X('Room', 'Ambiente')}</th><th>kWh / ${X('year', 'ano')}</th><th>${CUR} / ${X('year', 'ano')}</th><th>${CUR} ${st().sum}</th><th>${X('Level', 'Nível')}</th></tr>`;
@@ -407,7 +409,7 @@ function coolingTable() {
   h += `<div class="small mut">${X('Sensible cooling only (no dehumidification), so real bills are higher. The peak kW is the heat to remove at the hottest hour; BTU/h adds 10% margin and rounds up to a catalogue size. 1 kW = 3,412 BTU/h.',
         'Só refrigeração sensível (sem desumidificação), então as contas reais são maiores. O pico em kW é o calor a retirar na hora mais quente; o BTU/h soma 10% de margem e arredonda para um tamanho de catálogo. 1 kW = 3.412 BTU/h.')}</div>`;
   if (H.enabled) {
-    h += `<h3>${X('Cost of heating in winter', 'Custo de aquecer no inverno')}</h3><div class="small">`
+    h += `<h3>${X('Cost of heating in winter', 'Custo de aquecer no inverno')}</h3>${etag('fast')}<div class="small">`
        + X(`Fuel or electricity to hold each room at ${H.setpoint_C} °C while it is in use. Efficiency ${nf(H.efficiency, 2)}, price <b>${CUR} ${nf(H.price_per_kWh, 2)}/kWh</b>.`,
            `Combustível ou eletricidade para manter cada ambiente a ${H.setpoint_C} °C enquanto está em uso. Eficiência ${nf(H.efficiency, 2)}, preço de <b>${CUR} ${nf(H.price_per_kWh, 2)}/kWh</b>.`) + '</div>';
     h += `<table><tr><th>${X('Room', 'Ambiente')}</th><th>kWh / ${X('year', 'ano')}</th><th>${CUR} / ${X('year', 'ano')}</th><th>${X('Peak kW', 'Pico kW')}</th><th>${X('Level', 'Nível')}</th></tr>`;
@@ -426,7 +428,7 @@ function buildYear() {
   const room = X('Room', 'Ambiente'), verdict = X('Verdict', 'Veredito');
   let h = `<div class="small mut">${X('Coloured tags tell you how good each number is (hover for the meaning). The “What’s good?” tab explains every scale and its source.',
     'As etiquetas coloridas dizem o quão bom é cada número (passe o mouse para ver o significado). A aba “O que é bom?” explica cada escala e sua fonte.')}</div>`;
-  h += `<h3>${X('Overall level of each room (1 = bad … 5 = excellent)', 'Nível geral de cada ambiente (1 = péssimo … 5 = excelente)')}</h3><table>${th(room, X('Overall', 'Geral'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []))}`;
+  h += `<h3>${X('Overall level of each room (1 = bad … 5 = excellent)', 'Nível geral de cada ambiente (1 = péssimo … 5 = excelente)')}</h3>${etag('fast','radiance','energyplus')}<table>${th(room, X('Overall', 'Geral'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []))}`;
   const allLevels = [];
   for (const o of stat.openings) { const lv = roomLevels(o.room); if (!lv.length) continue; allLevels.push(...lv);
     const cr = stat.cooling.find(c => c.room === o.room);
@@ -434,49 +436,49 @@ function buildYear() {
   h += `<tr><td><b>${X('Whole house', 'Casa inteira')}</b></td><td>${overallChip(allLevels)}</td><td><b>${CUR} ${nf(stat.cooling_assumptions.cost_BRL_year)}</b></td>${HEAT ? `<td><b>${CUR} ${nf(stat.cooling_assumptions.heating.cost_year)}</b></td>` : ''}</tr></table>`;
   h += `<div class="small mut">${X('Overall = average of each room level on each check below (daylight, lamps, sun, comfort, hot / cold day, ventilation, cooling cost).',
     'Geral = média do nível do ambiente em cada verificação abaixo (luz natural, lâmpadas, sol, conforto, dia quente / frio, ventilação, custo de climatização).')}</div>`;
-  h += `<h3>${X('Is there enough daylight? (NBR 15575 test: room centre, lamps off)', 'Há luz natural suficiente? (ensaio da NBR 15575: centro do ambiente, lâmpadas apagadas)')}</h3><table>${th(room, 'Lux', verdict)}`;
+  h += `<h3>${X('Is there enough daylight? (NBR 15575 test: room centre, lamps off)', 'Há luz natural suficiente? (ensaio da NBR 15575: centro do ambiente, lâmpadas apagadas)')}</h3>${etag('fast')}<table>${th(room, 'Lux', verdict)}`;
   for (const r of ind) {
     const wet = ['bathroom', 'hall'].includes(kindOf(r.zone)), k = wet ? 'daylight_nbr_wet' : 'daylight_nbr_living';
     h += `<tr><td>${rn(r.zone)}</td><td>${nf(r.nbr15575_centre_lux)}</td><td>${chip(k, r.nbr15575_centre_lux)}</td></tr>`;
   }
   h += `</table><div class="small mut">${X('Worst of 23 Apr / 23 Oct at 9:30 and 15:30, sky light only. Minimum 60 lux (living rooms, bedrooms, kitchen); 30 / 45 lux for bathrooms and hallways.',
     'Pior de 23 abr / 23 out às 9h30 e 15h30, só luz do céu. Mínimo de 60 lux (salas, dormitórios, cozinha); 30 / 45 lux para banheiros e corredores.')}</div>`;
-  h += `<h3>${X('How much of the room is bright, and do I need lamps?', 'Quanto do ambiente é claro, e preciso de lâmpadas?')}</h3><table>${th(room, X('Goal (lux)', 'Meta (lux)'), X('Floor at goal', 'Piso na meta'), X('Lamps off', 'Lâmpadas apagadas'))}`;
+  h += `<h3>${X('How much of the room is bright, and do I need lamps?', 'Quanto do ambiente é claro, e preciso de lâmpadas?')}</h3>${etag('fast')}<table>${th(room, X('Goal (lux)', 'Meta (lux)'), X('Floor at goal', 'Piso na meta'), X('Lamps off', 'Lâmpadas apagadas'))}`;
   for (const r of ind) h += `<tr><td>${rn(r.zone)}</td><td>${r.sDA_dwelling_target_lux ?? '–'}</td><td>${isNum(r['sDA_dwelling_%']) ? nf(r['sDA_dwelling_%']) + '% ' + chip('sda_dwelling', r['sDA_dwelling_%']) : '–'}</td><td>${nf(r['lamps_off_%'])}% ${chip('lamps_off', r['lamps_off_%'])}</td></tr>`;
   h += `</table><div class="small mut">${X('Floor at goal: share of the floor reaching 100 lux (bedroom) / 150 (living) / 200 (kitchen) for half of 8:00–18:00. Lamps off: daytime hours when daylight already gives the general light level.',
     'Piso na meta: parcela do piso que atinge 100 lux (dormitório) / 150 (sala) / 200 (cozinha) em metade do período 8h–18h. Lâmpadas apagadas: horas do dia em que a luz natural já dá o nível de luz geral.')}</div>`;
-  h += `<h3>${X('Sun on the windows, and glare', 'Sol nas janelas e ofuscamento')}</h3><table>${th(room, X('Sun h/day Aug–Sep', 'Sol h/dia ago–set'), X('Glare area (ASE)', 'Área de ofuscamento (ASE)'))}`;
+  h += `<h3>${X('Sun on the windows, and glare', 'Sol nas janelas e ofuscamento')}</h3>${etag('fast')}<table>${th(room, X('Sun h/day Aug–Sep', 'Sol h/dia ago–set'), X('Glare area (ASE)', 'Área de ofuscamento (ASE)'))}`;
   for (const r of ind) h += `<tr><td>${rn(r.zone)}</td><td>${isNum(r.sun_hours_window_aug_sep) && LONG_STAY.includes(kindOf(r.zone)) ? nf(r.sun_hours_window_aug_sep, 1) + ' ' + chip('sun_hours_window', r.sun_hours_window_aug_sep) : (isNum(r.sun_hours_window_aug_sep) ? nf(r.sun_hours_window_aug_sep, 1) : '–')}</td><td>${nf(r['ASE1000_250h_%'])}% ${chip('ase', r['ASE1000_250h_%'])}</td></tr>`;
   h += '</table>';
-  h += `<h3>${X('Windows: size and openable area', 'Janelas: tamanho e área abrível')}</h3><table>${th(room, X('Glass / floor', 'Vidro / piso'), X('Openable / floor', 'Abrível / piso'))}`;
+  h += `<h3>${X('Windows: size and openable area', 'Janelas: tamanho e área abrível')}</h3>${etag('model')}<table>${th(room, X('Glass / floor', 'Vidro / piso'), X('Openable / floor', 'Abrível / piso'))}`;
   for (const r of stat.openings) { const ls = LONG_STAY.includes(r.kind);
     h += `<tr><td>${rn(r.room)}</td><td>${nf(r['window_%_of_floor'], 1)}% ${ls ? chip('glazing_ratio', r['window_%_of_floor']) : ''}</td><td>${nf(r['openable_%_of_floor'], 1)}% ${ls ? chip('vent_effective', r['openable_%_of_floor']) : ''}</td></tr>`; }
   h += `</table><div class="small mut">${X('NBR 15575-4: openable area at least 7% of the floor; glass at most 20% unless shaded. Openable assumes a sliding window opens half.',
     'NBR 15575-4: área abrível de pelo menos 7% do piso; vidro de no máximo 20%, salvo se sombreado. “Abrível” supõe que uma janela de correr abre metade.')}</div>`;
   h += coolingTable();
-  h += `<h3>${X('Temperature comfort over the year', 'Conforto térmico ao longo do ano')}</h3><table>${th(room, X('Comfortable', 'Confortável'), X('Too hot', 'Quente demais'), X('Too cold', 'Frio demais'))}`;
+  h += `<h3>${X('Temperature comfort over the year', 'Conforto térmico ao longo do ano')}</h3>${etag('fast')}<table>${th(room, X('Comfortable', 'Confortável'), X('Too hot', 'Quente demais'), X('Too cold', 'Frio demais'))}`;
   for (const r of stat.comfort) h += `<tr><td>${rn(r.room)}</td><td>${nf(r['comfort80_%'], 0)}% ${chip('comfort_pct', r['comfort80_%'])}</td><td>${nf(r.too_hot_hours)} h</td><td>${nf(r.too_cold_hours)} h</td></tr>`;
   const dd = stat.design_days;
-  h += `</table><h3>${X('NBR 15575 design days', 'Dias de projeto da NBR 15575')} (${dateStr(dd.hottest_day_iso)}: ${nf(dd.outdoor_max_on_hottest_day_C, 1)}°C ${X('max outside', 'máx. externa')} · ${dateStr(dd.coldest_day_iso)}: ${nf(dd.outdoor_min_on_coldest_day_C, 1)}°C ${X('min', 'mín.')})</h3>`;
+  h += `</table><h3>${X('NBR 15575 design days', 'Dias de projeto da NBR 15575')} (${dateStr(dd.hottest_day_iso)}: ${nf(dd.outdoor_max_on_hottest_day_C, 1)}°C ${X('max outside', 'máx. externa')} · ${dateStr(dd.coldest_day_iso)}: ${nf(dd.outdoor_min_on_coldest_day_C, 1)}°C ${X('min', 'mín.')})</h3>${etag('fast')}`;
   h += `<table>${th(room, X('Hot day: in − out', 'Dia quente: dentro − fora'), X('Cold day: in − out', 'Dia frio: dentro − fora'))}`;
   for (const r of stat.comfort.filter(x => x.room !== OUTDOORS)) { const req = ['living', 'bedroom'].includes(kindOf(r.room));
     h += `<tr><td>${rn(r.room)}${req ? '' : ` <span class="mut small">(${X('not rated', 'não avaliado')})</span>`}</td><td>${nf(r.nbr_summer_delta, 1)}° ${req ? chip('nbr_summer', r.nbr_summer_delta) : ''}</td><td>+${nf(r.nbr_winter_delta, 1)}° ${req ? chip('nbr_winter', r.nbr_winter_delta) : ''}</td></tr>`; }
   h += `</table><div class="small mut">${X('Rated for living rooms and bedrooms only, as in the norm. Hot day: indoor peak minus outdoor peak (≤ 0 minimum, ≤ −2 intermediate, ≤ −4 superior). Cold day: indoor minimum minus outdoor minimum (≥ +3 / +5 / +7).',
     'Avaliado só para salas e dormitórios, como na norma. Dia quente: máxima interna menos máxima externa (≤ 0 mínimo, ≤ −2 intermediário, ≤ −4 superior). Dia frio: mínima interna menos mínima externa (≥ +3 / +5 / +7).')}</div>`;
-  h += `<h3>${X('Cross-ventilation (wind hours with a through-draught)', 'Ventilação cruzada (horas com vento e corrente de ar atravessando)')}</h3><table>${th(room, X('Windy hours', 'Horas com vento'))}`;
+  h += `<h3>${X('Cross-ventilation (wind hours with a through-draught)', 'Ventilação cruzada (horas com vento e corrente de ar atravessando)')}</h3>${etag('fast')}<table>${th(room, X('Windy hours', 'Horas com vento'))}`;
   for (const r of stat.cross) h += `<tr><td>${rn(r.room)}</td><td>${nf(r['cross_ventilation_hours_%'])}% ${LONG_STAY.includes(kindOf(r.room)) ? chip('cross_vent', r['cross_ventilation_hours_%']) : ''}</td></tr>`;
   h += '</table>';
-  h += `<h3>${X('Sun energy on the outside (kWh/m²)', 'Energia solar por fora (kWh/m²)')}</h3><table>${th(X('Surface', 'Superfície'), X('Year', 'Ano'), X('Summer', 'Verão'), X('Winter', 'Inverno'))}`;
+  h += `<h3>${X('Sun energy on the outside (kWh/m²)', 'Energia solar por fora (kWh/m²)')}</h3>${etag('fast')}<table>${th(X('Surface', 'Superfície'), X('Year', 'Ano'), X('Summer', 'Verão'), X('Winter', 'Inverno'))}`;
   for (const r of stat.facade) { const wall = r.name.includes('wall');
     h += `<tr><td>${fname(r.name)}</td><td>${nf(r.annual_kWh_m2)}</td><td>${nf(r.summer_kWh_m2)} ${wall ? chip('wall_sun_summer', r.summer_kWh_m2) : ''}</td><td>${nf(r.winter_kWh_m2)} ${wall ? chip('wall_sun_winter', r.winter_kWh_m2) : ''}</td></tr>`; }
-  h += `</table><h3>${X('Direct sun reaching the floor (hours per day, by month)', 'Sol direto que chega ao piso (horas por dia, por mês)')}</h3><table><tr><th>${room}</th>` + monthsShort().map(m => `<th>${m[0]}</th>`).join('') + '</tr>';
+  h += `</table><h3>${X('Direct sun reaching the floor (hours per day, by month)', 'Sol direto que chega ao piso (horas por dia, por mês)')}</h3>${etag('fast')}<table><tr><th>${room}</th>` + monthsShort().map(m => `<th>${m[0]}</th>`).join('') + '</tr>';
   for (const zn of Object.keys(stat.sun_month)) h += `<tr><td>${rn(zn)}</td>` + stat.sun_month[zn].map(v => `<td>${nf(v, 1)}</td>`).join('') + '</tr>';
   $('tab-year').innerHTML = h + '</table>';
 }
 
 function lampTable() {
   const rec = SC.lux_recs;
-  let h = `<h3>${X('Lamps: how much light to install', 'Lâmpadas: quanta luz instalar')}</h3><div class="small">`
+  let h = `<h3>${X('Lamps: how much light to install', 'Lâmpadas: quanta luz instalar')}</h3>${etag('fast')}<div class="small">`
         + X('Light level is measured in <b>lux</b> (light arriving on a surface). A lamp gives out <b>lumens</b>. Lumens needed = lux × floor area ÷ (utilisation × maintenance = ', 'O nível de luz é medido em <b>lux</b> (luz que chega a uma superfície). Uma lâmpada emite <b>lumens</b>. Lumens necessários = lux × área do piso ÷ (utilização × manutenção = ')
         + nf(SC.uf * SC.mf, 2) + X('). The “minimum” is simply lux × m².', '). O “mínimo” é simplesmente lux × m².') + '</div>';
   h += `<table><tr><th>${X('Kind of room', 'Tipo de ambiente')}</th><th>${X('General light (lux)', 'Luz geral (lux)')}</th><th>${X('Task light (lux)', 'Luz de tarefa (lux)')}</th></tr>`;
@@ -512,7 +514,7 @@ function buildGood() {
     if (lamps) h += lampTable();
   }
   const cc = stat.construction_check;
-  h += `<h3>${X('Pass / fail summary of the walls and roof', 'Resumo de atende / não atende das paredes e da cobertura')}</h3><table><tr><th>Item</th><th>${X('Value', 'Valor')}</th><th>${X('Limit', 'Limite')}</th><th></th></tr>`;
+  h += `<h3>${X('Pass / fail summary of the walls and roof', 'Resumo de atende / não atende das paredes e da cobertura')}</h3>${etag('fast')}<table><tr><th>Item</th><th>${X('Value', 'Valor')}</th><th>${X('Limit', 'Limite')}</th><th></th></tr>`;
   for (const r of cc) h += `<tr><td>${cItem(r)}</td><td>${nf(r.value, r.value < 10 ? 2 : 0)} ${unitFix(r.unit)}</td><td>${r.limit.replace('.', LANG === 'pt' ? ',' : '.')}</td><td><span class="chip" style="background:${r.passes ? SC.levels[4].color : SC.levels[0].color}">${r.passes ? X('meets', 'atende') : X('does not meet', 'não atende')}</span></td></tr>`;
   h += `</table><div class="small mut">${X(`Assumed wall paint absorptance ${cc[0].assumed_absorptance} (light colours ≤ 0.6) and roof absorptance ${cc[2].assumed_absorptance} (red clay tile). Limits change with colour: a lighter roof gets a more generous U limit.`,
     `Absortância suposta da pintura da parede ${nf(cc[0].assumed_absorptance, 2)} (cores claras ≤ 0,6) e da cobertura ${nf(cc[2].assumed_absorptance, 2)} (telha cerâmica vermelha). Os limites mudam com a cor: uma cobertura mais clara tem um limite de U mais generoso.`)}</div>`;
@@ -521,14 +523,14 @@ function buildGood() {
 
 function buildMat() {
   const bc = stat.base_case, lab = (en, pt) => LANG === 'pt' ? pt : en;
-  let h = `<h3>${X('Assumed construction (base case)', 'Construção suposta (caso-base)')}</h3><div class="small"><b>${X('Walls', 'Paredes')}:</b> ${lab(bc.wall, bc.wall_pt)}<br><b>${X('Roof', 'Cobertura')}:</b> ${lab(bc.roof, bc.roof_pt)}<br><b>${X('Windows', 'Janelas')}:</b> ${X('common 2012 catalogue sizes (bedrooms 1.20×1.20 m, living / dining 2.00×1.20 m, kitchen 1.50×1.20 m, bathrooms 0.60×0.60 m)', 'medidas comuns de catálogo de 2012 (dormitórios 1,20×1,20 m, sala / jantar 2,00×1,20 m, cozinha 1,50×1,20 m, banheiros 0,60×0,60 m)')}</div>`;
+  let h = `<h3>${X('Assumed construction (base case)', 'Construção suposta (caso-base)')}</h3>${etag('model')}<div class="small"><b>${X('Walls', 'Paredes')}:</b> ${lab(bc.wall, bc.wall_pt)}<br><b>${X('Roof', 'Cobertura')}:</b> ${lab(bc.roof, bc.roof_pt)}<br><b>${X('Windows', 'Janelas')}:</b> ${X('common 2012 catalogue sizes (bedrooms 1.20×1.20 m, living / dining 2.00×1.20 m, kitchen 1.50×1.20 m, bathrooms 0.60×0.60 m)', 'medidas comuns de catálogo de 2012 (dormitórios 1,20×1,20 m, sala / jantar 2,00×1,20 m, cozinha 1,50×1,20 m, banheiros 0,60×0,60 m)')}</div>`;
   h += `<div class="warn">${X('These materials and sizes are TYPICAL for a Brazilian house, not confirmed for this house.', 'Esses materiais e medidas são TÍPICOS de uma casa brasileira, não confirmados para esta casa.')}</div>`;
   h += `<table><tr><th>${X('Part', 'Parte')}</th><th>cm</th><th>U</th><th>${X('Heat store kJ/m²K', 'Armazena calor kJ/m²K')}</th></tr>`;
   for (const r of stat.constructions) { const l = lab(r.label, r.label_pt);
     h += `<tr><td title="${esc(l)}">${l.length > 44 ? esc(l.slice(0, 42)) + '…' : esc(l)}</td><td>${nf(r.thickness_cm, 1)}</td><td>${nf(r.U_W_m2K, 2)}</td><td>${r.heat_capacity_kJ_m2K}</td></tr>`; }
   h += `</table><div class="small mut">${X('U = heat leaking per m² per degree (lower is better). Heat store = how much heat the layer soaks up before passing it on (higher smooths out day/night swings).',
     'U = calor que escapa por m² por grau (menor é melhor). Armazena calor = quanto calor a camada absorve antes de repassar (maior suaviza as oscilações entre dia e noite).')}</div>`;
-  h += `<h3>${X('How much do materials matter? (average comfortable hours / year, cooling bill)', 'Quanto importam os materiais? (média de horas confortáveis / ano, conta de climatização)')}</h3>`;
+  h += `<h3>${X('How much do materials matter? (average comfortable hours / year, cooling bill)', 'Quanto importam os materiais? (média de horas confortáveis / ano, conta de climatização)')}</h3>${etag('fast')}`;
   h += `<div class="small mut">${X('An existing house rarely gets new walls, but the roof / ceiling can often be improved, so each is shown on its own (the other part stays as it is today). Roof upgrades such as wool are in the Upgrades tab.',
     'Numa casa pronta é muito difícil trocar as paredes, mas a cobertura muitas vezes pode ser melhorada; por isso cada uma é mostrada separadamente (a outra parte fica como é hoje). Melhorias de cobertura, como lã, estão na aba Melhorias.')}</div>`;
   const bw = bc.wall_key, br = bc.roof_key, tot = s => s.cooling_BRL_year + (HEAT ? s.heating_cost_year : 0);
@@ -554,30 +556,36 @@ function buildUp() {
   const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>';
   let h = `<div class="small">${X('Each upgrade is simulated over the whole year and compared with the house as it is today. Roof wool lies on top of the ceiling; sealing = rubber gaskets and brush seals on frames and doors; fixed brise = horizontal projection over each window; movable blinds close when the sun on the window is strong.',
     'Cada melhoria é simulada no ano inteiro e comparada com a casa como ela é hoje. A lã fica sobre o forro; vedação = borrachas e escovas nas esquadrias e portas; brise fixo = projeção horizontal sobre cada janela; persianas móveis fecham quando o sol na janela é forte.')}</div>`;
-  h += `<h3>${X('Results by upgrade', 'Resultados por melhoria')}</h3><table>${th(X('Upgrade', 'Melhoria'), X('Comfort', 'Conforto'), X('Hottest', 'Máxima'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []), X('Bill change', 'Variação da conta'))}`;
+  h += `<h3>${X('Results by upgrade', 'Resultados por melhoria')}</h3>${etag('fast')}<table>${th(X('Upgrade', 'Melhoria'), X('Comfort', 'Conforto'), X('Hottest', 'Máxima'), X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), ...(HEAT ? [X(`Heating ${CUR}/yr`, `Aquecimento ${CUR}/ano`)] : []), X('Bill change', 'Variação da conta'))}`;
   for (const r of R) {
     const d = r.d_total_cost, col = d < -1 ? '#2e9e5b' : '#9aa5b1';
     h += `<tr><td><b>${LANG === 'pt' ? r.package_pt : r.package}</b><div class="small mut">${LANG === 'pt' ? r.what_pt : r.what_en}</div></td><td>${nf(r['avg_comfort_%'], 1)}%</td><td>${nf(r.avg_peak_T, 1)}°C</td><td>${CUR} ${nf(r.cooling_cost_year)}</td>${HEAT ? `<td>${CUR} ${nf(r.heating_cost_year)}</td>` : ''}<td><span class="chip" style="background:${col}">${d > 0 ? '+' : ''}${CUR} ${nf(d)}</span></td></tr>`;
   }
   h += `</table><div class="small mut">${X('Negative = saving per year. Upgrade prices are not included: divide a quotation by the yearly saving to get the payback time.', 'Negativo = economia por ano. Os preços das melhorias não estão incluídos: divida um orçamento pela economia anual para obter o retorno.')}</div>`;
+  const CA = stat.cooling_assumptions, src = [
+    [X('Comfort', 'Conforto'), X('Share of the 8,760 hours in which the operative temperature (mean of air and surface temperature) is inside the 80% band of the ASHRAE 55 adaptive model; average of the rooms. The air conditioner runs on its schedule here, so the percentage is higher than the PHFT of the NBR 15575 section (no air conditioning).', 'Parcela das 8.760 horas em que a temperatura operativa (média entre ar e superfícies) está na faixa de 80% do modelo adaptativo da ASHRAE 55; média dos ambientes. O ar-condicionado funciona no seu horário aqui, por isso o percentual é maior que o PHFT da seção da NBR 15575 (sem ar-condicionado).'), X('Fast engine; cross-checked with EnergyPlus (below)', 'Motor rápido; conferido com o EnergyPlus (abaixo)'), X('Medium: good for ranking upgrades, the absolute percentage is approximate.', 'Média: boa para ordenar melhorias, o percentual absoluto é aproximado.')],
+    [X('Hottest', 'Máxima'), X('Highest operative temperature of the year in each room, averaged over the rooms; one hour of a typical weather year, so real heat waves are hotter.', 'Maior temperatura operativa do ano em cada ambiente, em média dos ambientes; uma hora de um ano climático típico, ondas de calor reais são mais quentes.'), X('Fast engine', 'Motor rápido'), X('Medium-low: a single extreme hour is sensitive to the weather file.', 'Média-baixa: uma única hora extrema é sensível ao arquivo climático.')],
+    [X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), X(`Heat removed by an air conditioner holding ${CA.setpoint_C} °C in the hours each room kind is used, divided by the efficiency (COP ${nf(CA.COP, 1)}) and multiplied by the tariff (${CUR} ${nf(CA.tariff_BRL_per_kWh, 2)}/kWh, an assumption).`, `Calor retirado por um ar-condicionado que mantém ${CA.setpoint_C} °C nas horas de uso de cada tipo de ambiente, dividido pela eficiência (COP ${nf(CA.COP, 1)}) e multiplicado pela tarifa (${CUR} ${nf(CA.tariff_BRL_per_kWh, 2)}/kWh, suposição).`), X('Fast engine (energy); tariff and COP are assumptions', 'Motor rápido (energia); tarifa e COP são suposições'), X('Low: an order of magnitude and a way to compare upgrades; EnergyPlus gives roughly half of this energy.', 'Baixa: ordem de grandeza e forma de comparar melhorias; o EnergyPlus dá cerca de metade desta energia.')],
+    [X('Bill change', 'Variação da conta'), X('Cooling (and heating, when enabled) cost of the upgrade minus that of the house as it is. Negative = saving.', 'Custo de resfriamento (e de aquecimento, quando ativado) da melhoria menos o da casa como está. Negativo = economia.'), X('Fast engine', 'Motor rápido'), X('Low-medium: the difference between upgrades is more reliable than the absolute value.', 'Baixa-média: a diferença entre melhorias é mais confiável que o valor absoluto.')]];
+  h += `<div class="small mut" style="margin-top:6px">${X('Where the numbers of the table come from:', 'De onde vêm os números da tabela:')}</div><table>${th(X('Column', 'Coluna'), X('How it is calculated', 'Como é calculada'), X('Engine', 'Motor'), X('How far to trust it', 'Quanto confiar'))}${src.map(r => `<tr><td><b>${r[0]}</b></td>${r.slice(1).map(c => `<td style="text-align:left">${c}</td>`).join('')}</tr>`).join('')}</table>`;
   const wm = stat.retrofit_wool || [];
   if (wm.length) {
     const mms = [...new Set(wm.map(x => x.mm))];
-    h += `<h3>${X('Which wool, how thick? (change in yearly bill)', 'Qual lã, que espessura? (variação na conta anual)')}</h3><table><tr><th>${X('Wool', 'Lã')}</th>${mms.map(m => `<th>${m} mm</th>`).join('')}</tr>`;
+    h += `<h3>${X('Which wool, how thick? (change in yearly bill)', 'Qual lã, que espessura? (variação na conta anual)')}</h3>${etag('fast')}<table><tr><th>${X('Wool', 'Lã')}</th>${mms.map(m => `<th>${m} mm</th>`).join('')}</tr>`;
     for (const wt of [...new Set(wm.map(x => x.wool))]) {
       const c = (cat.wools || {})[wt] || {};
       h += `<tr><td>${LANG === 'pt' ? c.pt : c.en}<div class="small mut">λ ${nf(c.lambda, 3)}</div></td>${mms.map(m => { const x = wm.find(y => y.wool === wt && y.mm === m); return `<td>${CUR} ${nf(x.d_total_cost)}</td>`; }).join('')}</tr>`;
     }
     h += '</table>';
   }
-  h += `<h3>${X('Values used and how reliable they are', 'Valores usados e quão confiáveis são')}</h3><table><tr><th>${X('Measure', 'Medida')}</th><th>${X('Value', 'Valor')}</th><th>${X('Reliability', 'Confiança')}</th></tr>`;
+  h += `<h3>${X('Values used and how reliable they are', 'Valores usados e quão confiáveis são')}</h3>${etag('model')}<table><tr><th>${X('Measure', 'Medida')}</th><th>${X('Value', 'Valor')}</th><th>${X('Reliability', 'Confiança')}</th></tr>`;
   const nm = o => LANG === 'pt' ? o.pt : o.en;
   for (const c of Object.values(cat.wools || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>λ ${nf(c.lambda, 3)} W/m·K</td><td>${confChip(c.confidence)}</td></tr>`;
   for (const c of Object.values(cat.glazings || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>U ${nf(c.u, 1)}, g ${nf(c.g, 2)}, VT ${nf(c.vt, 2)}</td><td>${confChip(c.confidence)}</td></tr>`;
   if (cat.sealing) h += `<tr><td title="${esc(cat.sealing.source)}">${nm(cat.sealing)}</td><td>−${nf(cat.sealing.ach_reduction * 100)}% ${X('air changes', 'trocas de ar')}</td><td>${confChip(cat.sealing.confidence)}</td></tr>`;
   for (const c of Object.values(cat.shading || {})) h += `<tr><td title="${esc(c.source)}">${nm(c)}</td><td>${c.closed_gain_factor ? X('closed gain', 'ganho fechado') + ' ×' + c.closed_gain_factor : '—'}</td><td>${confChip(c.confidence)}</td></tr>`;
   h += `</table><div class="small mut">${X('Hover a name to see the source of the value.', 'Passe o mouse sobre o nome para ver a fonte do valor.')}</div>`;
-  h += `<h3>${X('LEED daylight pre-assessment (IES LM-83)', 'Pré-avaliação de luz natural LEED (IES LM-83)')}</h3><div class="small">${X('LEED v4.1 daylight credit, Option 1: area-weighted sDA300/50% of 40% / 55% / 75% = 1 / 2 / 3 points; ASE1000,250 above 10% needs a glare strategy. Indicative only, not a certification.',
+  h += `<h3>${X('LEED daylight pre-assessment (IES LM-83)', 'Pré-avaliação de luz natural LEED (IES LM-83)')}</h3>${etag('fast')}<div class="small">${X('LEED v4.1 daylight credit, Option 1: area-weighted sDA300/50% of 40% / 55% / 75% = 1 / 2 / 3 points; ASE1000,250 above 10% needs a glare strategy. Indicative only, not a certification.',
     'Crédito de luz natural do LEED v4.1, Opção 1: sDA300/50% ponderado pela área de 40% / 55% / 75% = 1 / 2 / 3 pontos; ASE1000,250 acima de 10% exige estratégia contra ofuscamento. Apenas indicativo, não é certificação.')}</div>`;
   h += `<table>${th(X('Room', 'Ambiente'), 'sDA300/50%', 'ASE', X('Step', 'Degrau'))}`;
   for (const r of stat.leed_rows || []) { const whole = String(r.zone).startsWith('WHOLE');
@@ -586,7 +594,7 @@ function buildUp() {
   const EP = stat.energyplus;
   if (EP) {
     const eb = EP.base || {};
-    h += `<h3>${X('Reference engine: EnergyPlus', 'Motor de referência: EnergyPlus')}</h3><div class="small">${X('Every package recalculated with EnergyPlus (ASHRAE 140 validated): heat balance of every surface, shared walls, attic above each room, real eaves, wind-driven window ventilation. Same set point, schedules and COP as the fast engine; no internal gains in either.',
+    h += `<h3>${X('Reference engine: EnergyPlus', 'Motor de referência: EnergyPlus')}</h3>${etag('energyplus')}<div class="small">${X('Every package recalculated with EnergyPlus (ASHRAE 140 validated): heat balance of every surface, shared walls, attic above each room, real eaves, wind-driven window ventilation. Same set point, schedules and COP as the fast engine; no internal gains in either.',
       'Todos os pacotes recalculados com o EnergyPlus (validado pela ASHRAE 140): balanço de calor de cada superfície, paredes compartilhadas, forro acima de cada ambiente, beirais reais, ventilação por vento nas janelas. Mesmo ponto de ajuste, horários e COP do motor rápido; sem ganhos internos em ambos.')}</div>`;
     h += `<table>${th(X('Package', 'Pacote'), X('Comfort without A/C', 'Conforto sem ar-cond.'), X('A/C kWh fast', 'Ar-cond. kWh rápido'), X('A/C kWh EnergyPlus', 'Ar-cond. kWh EnergyPlus'), X('Saving/yr', 'Economia/ano'))}`;
     for (const r of EP.scenarios || []) { const f = R.find(x => x.package === r.package) || {};
@@ -596,15 +604,30 @@ function buildUp() {
   const NB = stat.nbr15575;
   if (NB) {
     const b = NB.base, LVN = { M: X('Minimum', 'Mínimo'), I: X('Intermediate', 'Intermediário'), S: X('Superior', 'Superior'), 'not met': X('Not met', 'Não atendido') };
-    h += `<h3>${X('NBR 15575-1:2021 by simulation (PHFT)', 'NBR 15575-1:2021 por simulação (PHFT)')}</h3><div class="small">${X('Real house vs. reference house (100 mm walls, tile + air chamber + slab roof, windows of 17% of the floor): share of occupied hours with operative temperature between 18 and 26 °C in bedrooms and living room, windows opened only when occupied (EnergyPlus + AirflowNetwork). Section 11.4 of the standard (tables checked against the public draft).',
+    h += `<h3>${X('NBR 15575-1:2021 by simulation (PHFT)', 'NBR 15575-1:2021 por simulação (PHFT)')}</h3>${etag('energyplus','openfoam')}<div class="small">${X('Real house vs. reference house (100 mm walls, tile + air chamber + slab roof, windows of 17% of the floor): share of occupied hours with operative temperature between 18 and 26 °C in bedrooms and living room, windows opened only when occupied (EnergyPlus + AirflowNetwork). Section 11.4 of the standard (tables checked against the public draft).',
       'Casa real x casa de referência (paredes de 100 mm, cobertura de telha + câmara de ar + laje, janelas de 17% do piso): parcela das horas ocupadas com temperatura operativa entre 18 e 26 °C nos dormitórios e na sala, janelas abertas só quando ocupado (EnergyPlus + AirflowNetwork). Seção 11.4 da norma (tabelas conferidas com o projeto público).')}</div>`;
     h += `<table>${th(X('Package', 'Pacote'), 'PHFT', 'ΔPHFT', 'Tmax', 'Tmin', X('Load reduction', 'Redução da carga'), X('Level', 'Nível'))}`;
-    for (const r of NB.packages || []) h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r.PHFT_real, 1)}%</td><td>${nf(r.dPHFT, 1)}</td><td>${nf(r.Tomax_real, 1)}</td><td>${nf(r.Tomin_real, 1)}</td><td>${nf(r['RedCgTT_%'], 1)}%</td><td><b>${r.level}</b></td></tr>`;
-    h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for I / S', 'para I / S')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}${NB.generic_cp ? ' · ' + X('with generic Cp', 'com Cp genérico') + ': PHFT ' + nf(NB.generic_cp.PHFT_real, 1) + '% / ' + nf(NB.generic_cp.PHFT_ref, 1) + '%' : ''}</div>`;
+    for (const r of NB.packages || []) h += `<tr><td>${LANG === 'pt' ? r.package_pt : r.package}</td><td>${nf(r.PHFT_real, 1)}%</td><td>${nf(r.dPHFT, 1)}</td><td>${nf(r.Tomax_real, 1)}</td><td>${nf(r.Tomin_real, 1)}</td><td>${nf(r['RedCgTT_%'], 1)}%</td><td><b>${LVN[r.level] ?? r.level}</b></td></tr>`;
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('House as it is', 'Casa como está')}:</b> PHFT ${nf(b.PHFT_real, 1)}% ${X('vs reference', 'contra a referência')} ${nf(b.PHFT_ref, 1)}% · Tmax ${nf(b.Tomax_real, 1)} / ${nf(b.Tomax_ref, 1)} °C · Tmin ${nf(b.Tomin_real, 1)} / ${nf(b.Tomin_ref, 1)} °C · ${X('level', 'nível')}: <b>${LVN[b.level]}</b> (${X('needs ΔPHFT', 'precisa de ΔPHFT')} ≥ ${nf(b.dPHFT_min, 1)} ${X('for the intermediate / superior levels', 'para os níveis intermediário / superior')}) · ${X('wind pressure', 'pressão do vento')}: ${NB.cp_source}${NB.generic_cp ? ' · ' + X('with generic Cp', 'com Cp genérico') + ': PHFT ' + nf(NB.generic_cp.PHFT_real, 1) + '% / ' + nf(NB.generic_cp.PHFT_ref, 1) + '%' : ''}</div>`;
+    const LV = ((stat.methods || {})[LANG] || {}).levels || [];
+    if (LV.length) {
+      h += `<h3>${X('The levels of the standard and what they mean for living in the house', 'Os níveis da norma e o que significam para morar na casa')}</h3><table>${th(X('Level', 'Nível'), X('What the standard asks', 'O que a norma exige'), X('What living in the house is like', 'Como é morar na casa'), X('In this house', 'Nesta casa'))}`;
+      for (const lv of LV) {
+        let here;
+        if (lv.code === b.level) here = `<b>${X('Current house', 'Casa atual')}</b>: PHFT ${nf(b.PHFT_real, 1)}% ${X('against', 'contra')} ${nf(b.PHFT_ref, 1)}% (ΔPHFT ${nf(b.dPHFT, 1)}), ${X('load reduction', 'redução de carga')} ${nf(b['RedCgTT_%'], 1)}%`;
+        else {
+          const c = (NB.packages || []).filter(r => r.level === lv.code).sort((a, z) => z.dPHFT - a.dPHFT)[0];
+          here = c ? `${X('Reached by', 'Atingido por')} <b>${LANG === 'pt' ? c.package_pt : c.package}</b>: PHFT ${nf(c.PHFT_real, 1)}%, ΔPHFT ${nf(c.dPHFT, 1)}, ${X('load reduction', 'redução de carga')} ${nf(c['RedCgTT_%'], 1)}%` : X('No package reaches it.', 'Nenhum pacote chega a ele.');
+        }
+        h += `<tr><td style="border-left:5px solid ${lv.color}"><b>${lv.name}</b></td><td style="text-align:left">${lv.asks}</td><td style="text-align:left">${lv.life}</td><td style="text-align:left">${here}</td></tr>`;
+      }
+      h += `</table><div class="small mut">${X("The 'In this house' column uses the results of this simulation; the description of life in the house is our reading of the numbers, not text of the standard.", "A coluna 'Nesta casa' usa os resultados desta simulação; a descrição de como é morar na casa é a nossa leitura dos números, não texto da norma.")}</div>`;
+    }
+    h += ventHtml();
   }
   const RD = stat.radiance;
   if (RD) {
-    h += `<h3>${X('Reference engine: Radiance', 'Motor de referência: Radiance')}</h3><div class="small">${X('Same rooms and sensors, recalculated with Radiance (Perez sky, 4 light bounces, LM-83 blind rule): the validated engine behind ClimateStudio and Honeybee. The fast engine overestimates light deep inside rooms.',
+    h += `<h3>${X('Reference engine: Radiance', 'Motor de referência: Radiance')}</h3>${etag('radiance')}<div class="small">${X('Same rooms and sensors, recalculated with Radiance (Perez sky, 4 light bounces, LM-83 blind rule): the validated engine behind ClimateStudio and Honeybee. The fast engine overestimates light deep inside rooms.',
       'Mesmos ambientes e sensores, recalculados com o Radiance (céu de Perez, 4 reflexões, regra de persianas da LM-83): o motor validado por trás do ClimateStudio e do Honeybee. O motor rápido superestima a luz no fundo dos ambientes.')}</div>`;
     h += `<table>${th(X('Room', 'Ambiente'), X('sDA fast', 'sDA rápido'), 'sDA Radiance', 'ASE Radiance', X('mean lux', 'lux médio'))}`;
     for (const r of RD.rows || []) if (['living', 'bedroom', 'kitchen'].includes(r.kind))
@@ -612,6 +635,59 @@ function buildUp() {
     h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result with Radiance', 'Resultado com o Radiance')}:</b> ${RD.leed_points} / 3 ${X('daylight points', 'pontos de luz natural')} · sDA ${nf(RD['sDA300_50_avg_%'], 1)}% (${X('fast engine', 'motor rápido')} ${nf(RD.fast_engine?.['sDA300_50_avg_%'], 1)}%) · ASE ${nf(RD['ASE1000_250_avg_%'], 1)}% · ${X('sky check', 'checagem do céu')} ${RD.sky_check_ratio}</div>`;
   }
   $('tab-up').innerHTML = h;
+  wireVent();
+}
+// air circulation on the plan (arrows of the EnergyPlus AirflowNetwork flows), plan changes and hot-air exhaust effectiveness
+const VENT_C = { in: '#2a7fbf', out: '#d9534f', mid: '#c98a1b' };
+function ventSvg(vid, sc) {
+  const VS = stat.ventilation, v = VS.variants.find(x => x.id === vid), fl = (v.flows || {})[sc];
+  const pts = VS.rooms.flatMap(r => r.poly), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs) - 1.8, x1 = Math.max(...xs) + 2.4, y0 = Math.min(...ys) - 1.2, y1 = Math.max(...ys) + 1.2;
+  const P = (x, y) => [(x - x0).toFixed(2), (y1 - y).toFixed(2)];
+  const fill = { bedroom: '#f4e9d8', living: '#e3efe0', kitchen: '#efe6f2', bathroom: '#dde9f2', hall: '#f1f1f1', service: '#ececec' };
+  let s = `<svg viewBox="0 0 ${(x1 - x0).toFixed(1)} ${(y1 - y0).toFixed(1)}" style="width:100%;max-width:760px;background:#fff;border-radius:6px"><defs>`;
+  for (const [k, c] of Object.entries(VENT_C)) s += `<marker id="vh_${k}" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="0.6" markerHeight="0.6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`;
+  s += '</defs>';
+  for (const r of VS.rooms) {
+    s += `<polygon points="${r.poly.map(p => P(p[0], p[1]).join(',')).join(' ')}" fill="${fill[r.kind] || '#eee'}" stroke="#555" stroke-width="0.06"/>`;
+    if (r.kind !== 'service') { const [cx, cy] = P(r.centre[0], r.centre[1] + 0.1); s += `<text x="${cx}" y="${cy}" font-size="0.32" fill="#444" text-anchor="middle">${rn(r.name)}</text>`; }
+  }
+  for (const [id, q] of Object.entries(fl || {})) {
+    const o = VS.openings[id]; if (!o || Math.abs(q) < 6) continue;
+    const [px, py] = o.pos, sg = q > 0 ? 1 : -1, ext = !o.zone_b, col = o.kind === 'ceiling' ? (q > 0 ? VENT_C.out : VENT_C.in) : ext ? (q > 0 ? VENT_C.out : VENT_C.in) : VENT_C.mid;
+    const mk = col === VENT_C.in ? 'in' : col === VENT_C.out ? 'out' : 'mid';
+    if (o.kind === 'ceiling') { const [cx, cy] = P(px, py); s += `<text x="${cx}" y="${cy}" font-size="0.9" fill="${col}" text-anchor="middle" font-weight="bold">${q > 0 ? '↑' : '↓'}</text><text x="${cx}" y="${(+cy + 0.55).toFixed(2)}" font-size="0.28" fill="${col}" text-anchor="middle">${nf(Math.abs(q))}</text>`; continue; }
+    const [nx, ny] = o.n, half = ext ? 0.85 : 0.7, ox = o.kind === 'grille' ? -ny * 0.35 : 0, oy = o.kind === 'grille' ? nx * 0.35 : 0;
+    const a = P(px + ox - sg * nx * half, py + oy - sg * ny * half), b = P(px + ox + sg * nx * half, py + oy + sg * ny * half), w = 0.07 + Math.min(Math.abs(q) / 40, 4.5) * 0.045;
+    s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}" stroke-width="${w.toFixed(3)}" ${o.kind === 'grille' ? 'stroke-dasharray="0.15 0.1"' : ''} marker-end="url(#vh_${mk})"><title>${id}: ${nf(Math.abs(q))} m³/h</title></line>`;
+    if (Math.abs(q) >= 25) s += `<text x="${(+b[0] + 0.12).toFixed(2)}" y="${(+b[1] - 0.1).toFixed(2)}" font-size="0.26" fill="${col}">${nf(Math.abs(q))}</text>`;
+  }
+  return s + `<text x="${(x1 - x0 - 0.6).toFixed(1)}" y="0.9" font-size="0.5" text-anchor="middle" fill="#333">N ↑</text></svg>`;
+}
+function ventHtml() {
+  const VS = stat.ventilation; if (!VS) return '';
+  const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>', base = VS.variants[0].metrics;
+  const vn = v => LANG === 'pt' ? v.name_pt : v.name, vd = v => LANG === 'pt' ? v.desc_pt : v.desc;
+  let h = `<h3>${X('How the air moves through the house', 'Como o ar circula pela casa')}</h3>${etag('energyplus', 'openfoam')}<div class="small">${X(
+    'Average flow through each window, door, grille and ceiling opening, from the EnergyPlus airflow network (pressure on every opening from the OpenFOAM CFD). Blue = fresh air coming in, red = air leaving the house, orange = air moving between rooms; thickness follows m³/h. It is the flow between rooms, not a velocity field inside each room.',
+    'Vazão média por cada janela, porta, grelha e abertura do forro, da rede de fluxo de ar do EnergyPlus (pressão em cada abertura vinda do CFD do OpenFOAM). Azul = ar fresco entrando, vermelho = ar saindo da casa, laranja = ar passando entre ambientes; a espessura segue os m³/h. É o fluxo entre ambientes, não um campo de velocidades dentro de cada ambiente.')}</div>`;
+  h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"><label class="small">${X('Plan change', 'Alteração da planta')}: <select id="ventVar">${VS.variants.map(v => `<option value="${v.id}">${vn(v)}</option>`).join('')}</select></label>`
+    + `<label class="small">${X('Situation', 'Situação')}: <select id="ventSc">${VS.scenarios.map(s => `<option value="${s.id}"${s.id === 'hot' ? ' selected' : ''}>${LANG === 'pt' ? s.label_pt : s.label}${s.wind_hours ? ` (${s.wind_hours} h, ${nf(s.wind_speed, 1)} m/s)` : ''}</option>`).join('')}</select></label></div>`;
+  h += `<div id="ventDesc" class="small mut"></div><div id="ventPlan"></div>`;
+  h += `<h3>${X('Plan changes that improve or worsen ventilation', 'Alterações da planta que melhoram ou pioram a ventilação')}</h3>${etag('energyplus', 'openfoam')}<div class="small">${X(
+    'Each change is a new full-year EnergyPlus run (same weather, occupancy and CFD pressures). η = exhaust effectiveness: (T closed − T ventilated) ÷ (T closed − T outdoor) in the occupied hours when the closed house is above 26 °C; 0 = no cooling by ventilation, 1 = the room follows the outdoor air.',
+    'Cada alteração é uma nova simulação do ano inteiro no EnergyPlus (mesmo clima, ocupação e pressões do CFD). η = efetividade de exaustão: (T fechada − T ventilada) ÷ (T fechada − T externa) nas horas ocupadas em que a casa fechada passa de 26 °C; 0 = a ventilação não resfria, 1 = o ambiente acompanha o ar externo.')}</div>`;
+  h += `<table>${th(X('Change', 'Alteração'), 'PHFT', X('Hottest °C', 'Mais quente °C'), X('Degree-hours >26 °C', 'Graus-hora >26 °C'), X('ACH in hot hours', 'ACH nas horas quentes'), 'η', X('Heat carried out kWh/yr', 'Calor retirado kWh/ano'))}`;
+  for (const v of VS.variants) { const m = v.metrics, d = (k, n = 1) => v.id === 'base' ? '' : ` <span class="mut">(${m[k] - base[k] >= 0 ? '+' : ''}${nf(m[k] - base[k], n)})</span>`;
+    h += `<tr><td style="text-align:left"><b>${vn(v)}</b><br><span class="mut">${vd(v)}</span></td><td>${nf(m.PHFT, 1)}%${d('PHFT')}</td><td>${nf(m.Tomax, 1)}</td><td>${nf(m.degree_hours)}${d('degree_hours', 0)}</td><td>${nf(m.ach_hot, 1)}${d('ach_hot')}</td><td>${nf(m.eta, 2)}${d('eta', 2)}</td><td>${nf(m.removed_kwh)}${d('removed_kwh', 0)}</td></tr>`; }
+  h += `</table><div class="small mut">${X('Hot-air exhaust: there is no single standard coefficient, so three indicators are shown: air changes per hour in the hot hours, the effectiveness η, and the heat carried out by the air that leaves the house (ρ·cp·V·(T zone − T outdoor)). Age of air and the removal of a hot plume under the ceiling need an interior CFD, which is not done here.',
+    'Exaustão do ar quente: não existe um coeficiente padrão único, por isso são mostrados três indicadores: trocas de ar por hora nas horas quentes, a efetividade η e o calor retirado pelo ar que sai da casa (ρ·cp·V·(T zona − T externa)). Idade do ar e retirada de uma pluma quente sob o forro exigem um CFD interno, que não é feito aqui.')}</div>`;
+  return h;
+}
+function wireVent() {
+  const VS = stat.ventilation, a = $('ventVar'), b = $('ventSc'); if (!VS || !a || !b) return;
+  const draw = () => { const v = VS.variants.find(x => x.id === a.value); $('ventDesc').textContent = LANG === 'pt' ? v.desc_pt : v.desc; $('ventPlan').innerHTML = (v.flows || {})[b.value] ? ventSvg(a.value, b.value) : `<div class="small mut">${X('Too few hours in this situation.', 'Poucas horas nesta situação.')}</div>`; };
+  a.onchange = b.onchange = draw; draw();
 }
 function engineCards(M) {
   const E = M.engines || []; if (!E.length) return '';
@@ -625,13 +701,14 @@ function cfdDetails() {
   const S = C.setup, V = C.study, P = C.spread, vb = V.validation_box || {}, mh = V.mesh, u = V.uncertainty_cp, nfd = (v, d = 2) => nf(v, d);
   const row = (a, b) => `<tr><td>${a}</td><td style="text-align:left">${b}</td></tr>`;
   const img = n => `<img loading="lazy" src="assets/cfd/${n}_${LANG}.png" style="width:100%;border-radius:6px;background:#fff;margin:6px 0">`;
-  let h = `<h3>${X('Wind CFD (OpenFOAM): how it was calculated', 'CFD do vento (OpenFOAM): como foi calculado')}</h3><div class="small">${X(
+  let h = `<h3>${X('Wind CFD (OpenFOAM): how it was calculated', 'CFD do vento (OpenFOAM): como foi calculado')}</h3>${etag('openfoam')}<div class="small">${X(
     'The wind pressure on every window, door and eave opening comes from a steady RANS simulation of the house in a wind-engineering domain, repeated for each wind direction. The pressure coefficients feed the EnergyPlus airflow network (cross ventilation, NBR 15575 PHFT).',
     'A pressão do vento em cada janela, porta e abertura de beiral vem de uma simulação RANS permanente da casa num domínio de engenharia de vento, repetida para cada direção. Os coeficientes de pressão alimentam a rede de fluxo de ar do EnergyPlus (ventilação cruzada, PHFT da NBR 15575).')}</div>`;
   h += `<table>${row(X('Wind directions', 'Direções do vento'), `${S.directions} (${X('every', 'a cada')} ${nfd(S.step_deg, 0)}°)`)}`
     + row(X('House geometry', 'Geometria da casa'), X('closed envelope rebuilt from the IFC: both roofs with valley and ridge (' + nfd(S.domain.H_m, 1) + ' m), eaves, carport and porch roofs as thin plates; windows and doors closed', 'invólucro fechado reconstruído do IFC: os dois telhados com vale e cumeeira (' + nfd(S.domain.H_m, 1) + ' m), beirais, telhados do carport e das varandas como placas finas; janelas e portas fechadas'))
     + row(X('Domain', 'Domínio'), `${S.domain.upstream_H}H ${X('upstream', 'a montante')}, ${S.domain.downstream_H}H ${X('downstream', 'a jusante')}, ${S.domain.sides_H}H ${X('sideways', 'nas laterais')}, ${S.domain.top_H}H ${X('above', 'acima')} (H = ${nfd(S.domain.H_m, 1)} m)`)
     + row(X('Mesh', 'Malha'), `${S.mesh.mesher}; ${X('background cell', 'célula de fundo')} ${S.mesh.background_cell_m} m, ${S.mesh.surface_refinement_levels}; ${nf(S.mesh.cells_min / 1000)}–${nf(S.mesh.cells_max / 1000)} ${X('thousand cells per direction', 'mil células por direção')}`)
+    + row(X('Surroundings', 'Entorno'), X('lot walls (3.2 m east side up to the carport and 2.6 m after, 1.8 m west and back, 3.2 m at the neighbour’s edicula), neighbouring houses, houses across the street and the edicula as closed boxes; heights estimated from photographs and the owner’s description (single-storey, 4.4 m ridge, 1.5 m from the wall); meshed more coarsely (0.6 m) than the house', 'muros do lote (3,2 m do lado leste até o carport e 2,6 m depois, 1,8 m a oeste e nos fundos, 3,2 m na edícula do vizinho), casas vizinhas, casas do outro lado da rua e a edícula como caixas fechadas; alturas estimadas por fotografias e pela descrição do proprietário (térreas, cumeeira de 4,4 m, a 1,5 m do muro); malhadas de forma mais grossa (0,6 m) que a casa'))
     + row(X('Approach wind', 'Vento de aproximação'), `${X('log-law atmospheric boundary layer', 'camada limite atmosférica logarítmica')}, ${S.inlet.Uref_m_s} m/s ${X('at', 'a')} ${S.inlet.Zref_m} m, z0 = ${S.inlet.z0_m} m (${X('suburban', 'suburbano')})`)
     + row(X('Turbulence model', 'Modelo de turbulência'), `${S.turbulence} (${X('standard k-epsilon', 'k-épsilon padrão')})`)
     + row(X('Solver', 'Solucionador'), `${S.solver}; ${S.schemes}`)
@@ -649,14 +726,24 @@ function cfdDetails() {
     + row(X('Cp uncertainty per opening', 'Incerteza do Cp por abertura'), `${X('median', 'mediana')} ±${nfd(u.median)}, 95% ±${nfd(u.p95)}`)
     + (P ? row(X('Effect on PHFT of moving all Cp by the uncertainty', 'Efeito no PHFT de mover todos os Cp pela incerteza'), `${X('dwelling', 'moradia')} ${nf(P.minus.PHFT_real, 1)}% … ${nf(P.plus.PHFT_real, 1)}%, ${X('reference', 'referência')} ${nf(P.minus.PHFT_ref, 1)}% … ${nf(P.plus.PHFT_ref, 1)}%`) : '')
     + (C.check ? row(X('Difference to the generic Cp / to the first (flat-roof) version', 'Diferença para o Cp genérico / para a primeira versão (telhado plano)'), `rms ${nfd(C.check.vs_generic_rmse)} / ${nfd(C.check.vs_simple_rmse)}`) : '') + `</table>`;
-  h += `<div class="small mut" style="margin-top:6px">${X('Limits: no neighbours, lot walls or trees yet; steady RANS gives mean pressures only (no gusts); the mesh error is not shown to shrink, so ±0.1 in Cp is the honest resolution.', 'Limites: ainda sem vizinhos, muros do lote nem árvores; o RANS permanente dá só pressões médias (sem rajadas); não se viu o erro de malha diminuir, então ±0,1 no Cp é a resolução honesta.')}</div>`;
+  h += `<div class="small mut" style="margin-top:6px">${X('Limits: lot walls and neighbours are included but their heights are estimates from photographs, no trees; steady RANS gives mean pressures only (no gusts); the mesh error is not shown to shrink, so ±0.1 in Cp is the honest resolution.', 'Limites: muros do lote e vizinhos estão incluídos, mas com alturas estimadas por fotografias, sem árvores; o RANS permanente dá só pressões médias (sem rajadas); não se viu o erro de malha diminuir, então ±0,1 no Cp é a resolução honesta.')}</div>`;
   h += img('cfd_geometry') + img('cfd_verification') + img('cfd_cp_compare');
+  return h;
+}
+function engineDetails(M) {
+  const D = M.engine_details; if (!D) return '';
+  let h = `<h3>${X('The engines in detail: parameters, formulas and references', 'Os motores em detalhe: parâmetros, fórmulas e referências')}</h3>`;
+  for (const d of Object.values(D))
+    h += `<div class="scale"><div class="stitle">${d.name}</div><div class="small"><b>${X('Used for', 'Usado para')}:</b> ${d.uses}</div>`
+      + `<div class="small"><b>${X('Parameters', 'Parâmetros')}:</b><br>${d.params.map(x => '• ' + x).join('<br>')}</div>`
+      + `<div class="small"><b>${X('Formulas', 'Fórmulas')}:</b><br>${d.formulas.map(x => '• ' + x).join('<br>')}</div>`
+      + `<div class="small mut"><b>${X('References', 'Referências')}:</b><br>${d.refs.map(([a, u]) => `• ${a} — <a href="${u}" target="_blank" style="color:var(--acc)">${u.replace(/^https?:\/\//, '').slice(0, 48)}</a>`).join('<br>')}</div></div>`;
   return h;
 }
 function buildMeth() {
   const M = (stat.methods || {})[LANG]; if (!M) { $('tab-meth').innerHTML = ''; return; }
   const L = M.labels;
-  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div>${engineCards(M)}${cfdDetails()}<h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
+  let h = `<div class="small">${M.intro}</div><div class="warn">${M.validation}</div>${engineCards(M)}${engineDetails(M)}${cfdDetails()}<h3>${L.software}</h3><div class="small mut">${Object.entries(M.software).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>`;
   h += `<h3>${L.modules}</h3>`;
   for (const m of M.modules)
     h += `<div class="scale"><div class="stitle">${m.title} <span class="badge" style="background:${m.conf_color};color:#111">${L.conf}: ${m.conf_label}</span></div><div class="small">${m.text}</div><div class="small mut">${L.why}: ${m.why}</div></div>`;
