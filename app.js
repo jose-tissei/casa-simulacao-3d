@@ -689,6 +689,74 @@ function wireVent() {
   const draw = () => { const v = VS.variants.find(x => x.id === a.value); $('ventDesc').textContent = LANG === 'pt' ? v.desc_pt : v.desc; $('ventPlan').innerHTML = (v.flows || {})[b.value] ? ventSvg(a.value, b.value) : `<div class="small mut">${X('Too few hours in this situation.', 'Poucas horas nesta situação.')}</div>`; };
   a.onchange = b.onchange = draw; draw();
 }
+// biophilia: design matrix (14 patterns, seven columns), healing index, view out of each room, suggestions
+const bioSlug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+function bioHtml() {
+  const B = stat.biophilia; if (!B) return '';
+  const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>', nm = (o, k = 'name') => LANG === 'pt' ? o[k + '_pt'] : o[k], ev = o => o.evidence[LANG];
+  const SRC = { calculated: X('calculated', 'calculado'), inferred: X('inferred (proxy)', 'inferido (indicador indireto)'), declared: X('declared by the owner', 'declarado pelo proprietário'), not_evaluated: X('not evaluated', 'não avaliado') };
+  const CONF = { low: X('low', 'baixa'), medium: X('medium', 'média'), high: X('high', 'alta'), declared: X("owner's rating", 'avaliação do proprietário') };
+  let h = `<div class="warn small"><b>${X('Indicative only', 'Apenas indicativo')}:</b> ${B.notice[LANG]}</div>`;
+  h += `<h3>${X('Biophilic Design Matrix: 14 patterns', 'Matriz de Design Biofílico: 14 padrões')}</h3>${etag('biophilia', 'model')}<div class="small">${X(
+    'Each pattern sits in one of seven columns from the share of the counted rooms (occupied rooms other than bathrooms, hall and outdoor areas) that meet a strong criterion: none = not included, a weak form only = only in detail, up to half = in a few areas, more than half = house. These thresholds are this tool’s own, the matrix has no official total score (none is invented) and patterns that rest on a weak indicator are capped at “in a few areas”. The rubric of seven columns comes from the UGREEN video on the 14 patterns of Terrapin Bright Green.',
+    'Cada padrão fica em uma de sete colunas pela parcela dos ambientes contados (ambientes ocupados, exceto banheiros, corredor e áreas externas) que cumprem um critério forte: nenhum = não incluído, só uma forma fraca = só em detalhe, até a metade = em poucas áreas, mais da metade = casa. Esses limiares são desta ferramenta, a matriz não tem nota total oficial (nenhuma é inventada) e padrões apoiados em indicador fraco ficam limitados a “em poucas áreas”. A régua de sete colunas vem do vídeo da UGREEN sobre os 14 padrões da Terrapin Bright Green.')}</div>`;
+  h += `<img loading="lazy" src="assets/bio/bio_matrix_${LANG}.png" style="width:100%;border-radius:6px;background:#fff;margin:6px 0">`;
+  h += `<table>${th(X('Pattern', 'Padrão'), X('Column and how', 'Coluna e como'), X('Evidence', 'Evidência'))}`;
+  for (const p of B.patterns)
+    h += `<tr><td style="text-align:left"><b>${p.id}</b> ${nm(p)}</td><td><b>${nm(p, 'level_name')}</b><br><span class="mut">${SRC[p.source]}${p.source === 'not_evaluated' ? '' : ` · ${X('trust', 'confiança')} ${CONF[p.confidence] || p.confidence}`}<br>${nm(p, 'engine')}</span></td><td style="text-align:left" class="small">${ev(p)}</td></tr>`;
+  h += '</table>';
+  const s = B.bhi_sum;
+  h += `<h3>${X('Biophilic Healing Index (Salingaros)', 'Índice de Cura Biofílico (Salingaros)')}</h3>${etag('biophilia', 'model')}<div class="small">${X(
+    `Ten components, each 0 (none), 1 (some) or 2 (a large amount), equal weights, total 0 to 20. The author calls the link between the index and healing a conjecture still to be tested. Only ${s.calculated_components} of the 10 components can be estimated from the model, so the number is partial.`,
+    `Dez componentes, cada um 0 (nenhum), 1 (algum) ou 2 (muito), pesos iguais, total de 0 a 20. O autor chama a ligação entre o índice e a cura de conjectura ainda a testar. Só ${s.calculated_components} dos 10 componentes podem ser estimados pelo modelo, então o número é parcial.`)}</div>`;
+  h += `<table>${th(X('Component', 'Componente'), '0 / 1 / 2', X('How and evidence', 'Como e evidência'))}`;
+  for (const b of B.bhi) h += `<tr><td style="text-align:left">${nm(b)}</td><td><b>${b.value === null ? '—' : b.value}</b></td><td style="text-align:left" class="small"><span class="mut">${SRC[b.source]}${b.engine === '-' ? '' : ' · ' + nm(b, 'engine')}</span><br>${ev(b)}</td></tr>`;
+  h += `</table><div class="box small" style="margin-top:6px"><b>${X('Result', 'Resultado')}:</b> ${X(`${s.calculated} of ${s.calculated_max} possible in the ${s.calculated_components} components the model can estimate; with the owner’s ratings ${s.with_declared} of ${s.with_declared_max} in ${s.evaluated_components} of 10 components.`,
+    `${s.calculated} de ${s.calculated_max} possíveis nos ${s.calculated_components} componentes que o modelo consegue estimar; com as avaliações do proprietário ${s.with_declared} de ${s.with_declared_max} em ${s.evaluated_components} de 10 componentes.`)}</div>`;
+  const wr = B.rooms.filter(r => r.n_windows > 0);
+  h += `<h3>${X('View out of each room', 'Vista para fora de cada ambiente')}</h3>${etag('biophilia', 'model')}<div class="small">${X(
+    'Seen from inside the room through each window, seated (1.2 m) and standing (1.6 m). Sky blue, vegetation green, ground red, walls, roofs and neighbours grey. A restorative view has sky, a middle layer of vegetation and ground (each at least 5% of the window), with the nearest obstacle at 6 m or more (rule of the UGREEN video, applied here as this tool’s criterion; a wall, a street or the neighbours’ houses are not nature). Distances are from the eye, 1 m behind the window. Glass treated as fully transparent; trees are boxes at estimated positions.',
+    'Vista de dentro do ambiente por cada janela, sentado (1,2 m) e em pé (1,6 m). Céu azul, vegetação verde, chão vermelho, paredes, telhados e vizinhos cinza. Uma vista restauradora tem céu, uma camada intermediária de vegetação e chão (cada um com ao menos 5% da janela), com o obstáculo mais próximo a 6 m ou mais (regra do vídeo da UGREEN, aplicada aqui como critério desta ferramenta; muro, rua ou casas vizinhas não são natureza). As distâncias são a partir do olho, 1 m atrás da janela. Vidro tratado como totalmente transparente; árvores são caixas em posições estimadas.')}</div>`;
+  h += `<table>${th(X('Room', 'Ambiente'), X('Windows', 'Janelas'), X('Green in view', 'Verde à vista'), X('Sky + middle + ground', 'Céu + intermediário + chão'), X('Nearest obstacle ≥ 6 m', 'Obstáculo mais próximo ≥ 6 m'), X('Longest sight line', 'Linha de visão mais longa'))}`;
+  for (const r of B.rooms) if (r.n_windows || r.counted)
+    h += `<tr><td style="text-align:left">${rn(r.room)}${r.counted ? '' : ` <span class="mut">(${X('service', 'serviço')})</span>`}</td><td>${r.n_windows}</td><td>${nf(r.green_view * 100)}%</td><td>${r.three_layers ? X('yes', 'sim') : X('no', 'não')}</td><td>${r.focal_ok && r.n_windows ? X('yes', 'sim') : X('no', 'não')}</td><td>${r.prospect_m == null ? '-' : nf(r.prospect_m) + ' m'}</td></tr>`;
+  h += `</table><label class="small" style="display:block;margin:6px 0">${X('Room', 'Ambiente')}: <select id="bioRoom">${wr.map(r => `<option value="${bioSlug(r.room)}">${rn(r.room)}</option>`).join('')}</select></label><img id="bioView" style="width:100%;border-radius:6px;background:#fff" alt="">`;
+  const mo = B.moisture;
+  if (mo) {
+    const LV = { none: X('no risk flagged', 'nenhum risco sinalizado'), closed_only: X('only in the closed-up limit case', 'só no caso-limite de casa fechada'), some: X('some weeks a year', 'algumas semanas por ano'), long: X('long periods', 'longos períodos'),
+      no_source: X('not assessable: no moisture source in the model', 'não avaliável: sem fonte de umidade no modelo') };
+    h += `<h3>${X('Moisture and mould (screening)', 'Umidade e mofo (triagem)')}</h3>${etag('energyplus', 'openfoam')}<div class="small">${X(
+      `Little direct sun and weak ventilation, in a humid climate, favour mould. The screening uses the simplified test of ASHRAE Standard 160: the 30-day running average of the surface relative humidity (coldest wall or ceiling of the room, from EnergyPlus) should stay below ${mo.criterion.rh_limit}% while the 30-day average temperature is between ${mo.criterion.t_range_c[0]} and ${mo.criterion.t_range_c[1]} °C. ASHRAE addenda replace this limit by a mould-index model because it is conservative (check the current edition) and the WHO (2009) gives no numerical limit: it is a screening, not a diagnosis. “Open” is the house as it is; “closed” is a limit case with the windows shut the whole year, no air conditioning and the occupants inside, which is not how the house is used. Outdoors the air is above 80% for ${nf(mo.outdoor.hours_rh_over_80)} hours a year.`,
+      `Pouco sol direto e ventilação fraca, em clima úmido, favorecem o mofo. A triagem usa o teste simplificado da ASHRAE 160: a média móvel de 30 dias da umidade relativa da superfície (parede ou forro mais frio do ambiente, do EnergyPlus) deve ficar abaixo de ${mo.criterion.rh_limit}% enquanto a temperatura média de 30 dias está entre ${mo.criterion.t_range_c[0]} e ${mo.criterion.t_range_c[1]} °C. Adendos da ASHRAE trocam esse limite por um modelo de índice de mofo porque ele é conservador (confira a edição vigente) e a OMS (2009) não dá limite numérico: é uma triagem, não um diagnóstico. “Aberta” é a casa como é; “fechada” é um caso-limite com as janelas fechadas o ano todo, sem ar-condicionado e com os moradores dentro, que não é como a casa é usada. Do lado de fora o ar passa de 80% em ${nf(mo.outdoor.hours_rh_over_80)} horas por ano.`)}</div>`;
+    h += `<table>${th(X('Room', 'Ambiente'), X('Sun h/day', 'Sol h/dia'), X('Highest 30-day surface RH open / closed', 'Maior UR da superfície em 30 dias, aberta / fechada'), X('Year above limit open / closed', 'Ano acima do limite aberta / fechada'), X('Reading', 'Leitura'))}`;
+    for (const m of mo.rooms)
+      h += `<tr><td style="text-align:left">${rn(m.room)}${m.service ? ` <span class="mut">(${X('service', 'serviço')})</span>` : ''}</td><td>${m.sun_h_per_day == null ? '-' : nf(m.sun_h_per_day, 2)}</td><td>${nf(m.open.max_30day_surface_rh)}% / ${nf(m.closed.max_30day_surface_rh)}%</td><td>${nf(m.open.risk_share_pct, 1)}% / ${nf(m.closed.risk_share_pct, 1)}%</td><td>${LV[m.level]}${m.low_sun ? ' · ' + X('little sun', 'pouco sol') : ''}</td></tr>`;
+    h += `</table><div class="box small" style="margin-top:6px"><b>${X('Rooms to watch', 'Ambientes a observar')}:</b> ${mo.attention.length ? mo.attention.map(rn).join(', ') : X('none flagged by this screening', 'nenhum sinalizado por esta triagem')}</div><div class="small mut">${X(
+      'Limits: in the model people are the only moisture source (bedrooms and living room); the kitchen and bathrooms have none (no cooking, no showers), walls store no moisture and there is no rain or rising damp, so a daily-steamed bathroom would be worse than shown; the surface temperature is that of the coldest wall or ceiling, not of corners or behind furniture.',
+      'Limites: no modelo as pessoas são a única fonte de umidade (quartos e sala); a cozinha e os banheiros não têm nenhuma (sem cozimento, sem banho), as paredes não armazenam umidade e não há chuva nem umidade ascendente, então um banheiro com vapor diário ficaria pior que o mostrado; a temperatura da superfície é a da parede ou do forro mais frio, não a de cantos ou atrás de móveis.')}</div>`;
+  }
+  h += `<h3>${X('Suggestions, by effort', 'Sugestões, por esforço')}</h3><div class="small">${X(
+    'Each suggestion names the patterns it can raise. Only the ventilation changes (EnergyPlus) and the planted wall (measured on the views) carry numbers; the others are recommendations with no invented gain. Shade-tree scenarios (sun, comfort) are not simulated yet; trees only enter the views, never the base-case numbers.',
+    'Cada sugestão diz quais padrões ela pode elevar. Só as alterações de ventilação (EnergyPlus) e a parede verde (medida nas vistas) trazem números; as demais são recomendações, sem ganho inventado. Cenários de árvores de sombra (sol, conforto) ainda não são simulados; as árvores entram só nas vistas, nunca nos números do caso base.')}</div>`;
+  h += `<table>${th(X('Effort', 'Esforço'), X('Suggestion', 'Sugestão'))}`;
+  for (const g of B.suggestions) {
+    const m = g.measured, sc = g.scenario;
+    const where = m ? `PHFT ${nf(m.PHFT, 1)}% (${X('now', 'hoje')} ${nf(m.PHFT_base, 1)}%), ${X('degree-hours', 'graus-hora')} ${nf(m.degree_hours)} (${nf(m.degree_hours_base)}), η ${nf(m.eta, 2)} (${nf(m.eta_base, 2)}) · ${nm(m, 'engine')}`
+      : sc ? sc.windows.map(w => `${rn(w.room)}: ${X('green in view', 'verde à vista')} ${nf(w.green_before * 100)}% → ${nf(w.green_after * 100)}% (${X('up to', 'até')} ${nf(w.green_after_max * 100)}%)`).join('; ') + ` · ${nm(sc, 'engine')}` : g.rooms.slice(0, 6).map(rn).join(', ');
+    h += `<tr><td>${nm(g, 'effort_name')}</td><td style="text-align:left">${g.text[LANG]}<div class="small mut">${X('Patterns', 'Padrões')}: ${g.patterns.join(', ')}${where ? ' · ' + where : ''}</div></td></tr>`;
+  }
+  h += '</table>';
+  if (B.suggestions.some(g => g.scenario))
+    h += `<div class="small mut">${X('Planted-wall scenario: an idealised slab of foliage 0.4 m thick and 4 m wide, 0.2 m in front of the obstacle each blocked window faces (nearest obstacle under 4 m and 60% or more of the opening). The figure and the first number use a slab 1.8 m high (a climbing wall as tall as the lowest boundary wall); “up to” is an upper bound with a slab 3.4 m high. Measured only on the views; the base-case numbers do not change; not a planting design.',
+      'Cenário de parede verde: uma placa idealizada de folhagem de 0,4 m de espessura e 4 m de largura, 0,2 m à frente do obstáculo que cada janela bloqueada enxerga (obstáculo mais próximo a menos de 4 m e 60% ou mais da abertura). A figura e o primeiro número usam uma placa de 1,8 m de altura (uma parede trepadeira da altura do muro mais baixo); “até” é um limite superior com uma placa de 3,4 m. Medido só nas vistas; os números do caso base não mudam; não é um projeto de plantio.')}</div><img loading="lazy" src="assets/bio/bio_scn_green_wall_${LANG}.png" style="width:100%;border-radius:6px;background:#fff;margin:6px 0">`;
+  return h;
+}
+function buildBio() {
+  const h = bioHtml(); $('tab-bio').innerHTML = h;
+  const sel = $('bioRoom'), im = $('bioView'); if (!sel || !im) return;
+  const draw = () => { im.src = `assets/bio/bio_view_${sel.value}_${LANG}.png`; };
+  sel.onchange = draw; draw();
+}
 function engineCards(M) {
   const E = M.engines || []; if (!E.length) return '';
   const card = e => `<a href="${e.url}" target="_blank" style="flex:1;min-width:130px;text-align:center;background:#fff;border-radius:6px;padding:8px;text-decoration:none;color:#111"><img loading="lazy" src="${e.logo}" style="height:28px;max-width:130px;object-fit:contain"><div style="font-size:12px"><b>${e.name}</b> ${e.version}</div><div style="font-size:11px;color:#555">${e.role}</div></a>`;
@@ -750,10 +818,10 @@ function buildMeth() {
   h += `<h3>${L.refs}</h3><div class="small">` + M.references.map(([a, u]) => `• ${a} — <a href="${u}" target="_blank" style="color:var(--acc)">${u.replace(/^https?:\/\//, '').slice(0, 48)}</a>`).join('<br>') + '</div>';
   $('tab-meth').innerHTML = h;
 }
-buildYear(); buildGood(); buildMat(); buildUp(); buildMeth();
+buildYear(); buildGood(); buildMat(); buildUp(); buildBio(); buildMeth();
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  for (const t of ['now', 'year', 'good', 'mat', 'up', 'meth']) $('tab-' + t).classList.toggle('hide', t !== b.dataset.tab);
+  for (const t of ['now', 'year', 'good', 'mat', 'up', 'bio', 'meth']) $('tab-' + t).classList.toggle('hide', t !== b.dataset.tab);
 });
 
 // ---------------------------------------------------------------- controls ---------------------------------------
@@ -858,7 +926,7 @@ function applyStatic() {
 }
 function setLang(l) {
   LANG = l; SC = stat.scales[l]; localStorage.setItem('lang', l);
-  applyStatic(); buildYear(); buildGood(); buildMat(); buildUp(); buildMeth(); refresh();
+  applyStatic(); buildYear(); buildGood(); buildMat(); buildUp(); buildBio(); buildMeth(); refresh();
 }
 $('langPT').onclick = () => setLang('pt'); $('langEN').onclick = () => setLang('en');
 fetch('reports/Relatorio_Casa.pdf', { method: 'HEAD' }).then(r => { if (!r.ok) $('pdfLink').style.display = 'none'; }).catch(() => { $('pdfLink').style.display = 'none'; });
