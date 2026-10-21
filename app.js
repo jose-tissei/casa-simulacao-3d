@@ -9,6 +9,7 @@ const st = () => stat.project.season_text[LANG];                           // {s
 // ---------------------------------------------------------------- language (pt-BR default, en available) -------------------
 const hashLang = new URLSearchParams(location.hash.slice(1)).get('lang');
 let LANG = ['pt', 'en'].includes(hashLang) ? hashLang : (localStorage.getItem('lang') || 'pt');
+let bioPick = '';            // biophilia room slug from a deep link (index.html#bio=...), reused when the Biofilia tab is built
 let SC = stat.scales[LANG];
 const X = (en, pt) => LANG === 'pt' ? pt : en;                          // text in the current language
 const rn = n => LANG === 'pt' ? (stat.names_pt[n] ?? n) : n;            // room name
@@ -436,6 +437,7 @@ function buildYear() {
   h += `<tr><td><b>${X('Whole house', 'Casa inteira')}</b></td><td>${overallChip(allLevels)}</td><td><b>${CUR} ${nf(stat.cooling_assumptions.cost_BRL_year)}</b></td>${HEAT ? `<td><b>${CUR} ${nf(stat.cooling_assumptions.heating.cost_year)}</b></td>` : ''}</tr></table>`;
   h += `<div class="small mut">${X('Overall = average of each room level on each check below (daylight, lamps, sun, comfort, hot / cold day, ventilation, cooling cost).',
     'Geral = média do nível do ambiente em cada verificação abaixo (luz natural, lâmpadas, sol, conforto, dia quente / frio, ventilação, custo de climatização).')}</div>`;
+  h += otherStudies();
   h += `<h3>${X('Is there enough daylight? (NBR 15575 test: room centre, lamps off)', 'Há luz natural suficiente? (ensaio da NBR 15575: centro do ambiente, lâmpadas apagadas)')}</h3>${etag('fast')}<table>${th(room, 'Lux', verdict)}`;
   for (const r of ind) {
     const wet = ['bathroom', 'hall'].includes(kindOf(r.zone)), k = wet ? 'daylight_nbr_wet' : 'daylight_nbr_living';
@@ -474,6 +476,51 @@ function buildYear() {
   h += `</table><h3>${X('Direct sun reaching the floor (hours per day, by month)', 'Sol direto que chega ao piso (horas por dia, por mês)')}</h3>${etag('fast')}<table><tr><th>${room}</th>` + monthsShort().map(m => `<th>${m[0]}</th>`).join('') + '</tr>';
   for (const zn of Object.keys(stat.sun_month)) h += `<tr><td>${rn(zn)}</td>` + stat.sun_month[zn].map(v => `<td>${nf(v, 1)}</td>`).join('') + '</tr>';
   $('tab-year').innerHTML = h + '</table>';
+}
+
+// Summary of the studies the room table above does not cover; a line is left out when its study did not run
+function otherStudies() {
+  const rows = [], NB = stat.nbr15575, VS = stat.ventilation, RT = stat.retrofits || [], L = stat.leed, B = stat.biophilia;
+  const tabUp = X('Upgrades tab', 'aba Melhorias'), tabBio = X('Biophilia tab', 'aba Biofilia');
+  if (NB && NB.base) {
+    const b = NB.base, LVN = { M: X('Minimum', 'Mínimo'), I: X('Intermediate', 'Intermediário'), S: X('Superior', 'Superior'), 'not met': X('Not met', 'Não atendido') };
+    rows.push([X('Thermal performance NBR 15575-1:2021 (simulation)', 'Desempenho térmico NBR 15575-1:2021 (simulação)'),
+      X(`PHFT ${nf(b.PHFT_real, 1)}% against ${nf(b.PHFT_ref, 1)}% of the reference house; level reached: ${LVN[b.level] ?? b.level}.`, `PHFT ${nf(b.PHFT_real, 1)}% contra ${nf(b.PHFT_ref, 1)}% da casa de referência; nível atingido: ${LVN[b.level] ?? b.level}.`), tabUp]);
+  }
+  if (VS && VS.variants && VS.variants.length > 1) {
+    const base = VS.variants[0], best = VS.variants.slice(1).reduce((a, v) => v.metrics.PHFT > a.metrics.PHFT ? v : a);
+    rows.push([X('Ventilation: air paths, plan changes, hot-air exhaust', 'Ventilação: caminhos do ar, alterações da planta, exaustão do ar quente'),
+      X(`Best change: ${best.name} (PHFT ${nf(best.metrics.PHFT, 1)}% against ${nf(base.metrics.PHFT, 1)}%; ${nf(base.metrics.ach_hot, 1)} air changes/h in hot hours today).`,
+        `Melhor alteração: ${best.name_pt} (PHFT ${nf(best.metrics.PHFT, 1)}% contra ${nf(base.metrics.PHFT, 1)}%; ${nf(base.metrics.ach_hot, 1)} trocas de ar/h nas horas quentes hoje).`), tabUp]);
+  }
+  const cand = RT.filter(r => r.package !== 'Base');
+  if (cand.length) {
+    const best = cand.reduce((a, r) => r.d_total_cost < a.d_total_cost ? r : a);
+    rows.push([X('Upgrades: insulation, sealing, glass, shading', 'Melhorias: isolamento, vedação, vidro, sombreamento'),
+      X(`Largest saving: ${best.what_en} (${CUR} ${nf(-best.d_total_cost)} less per year, ${nf(best.d_comfort_pts, 1)} points more comfortable hours).`,
+        `Maior economia: ${best.what_pt} (${CUR} ${nf(-best.d_total_cost)} a menos por ano, ${nf(best.d_comfort_pts, 1)} pontos a mais de horas confortáveis).`), tabUp]);
+  }
+  if (L && L['sDA300_50_avg_%'] !== undefined) {
+    rows.push([X('Daylight for green-building rating (LEED / IES LM-83)', 'Luz natural para certificação (LEED / IES LM-83)'),
+      X(`sDA300/50% of the house ${nf(L['sDA300_50_avg_%'])}%, ASE ${nf(L['ASE1000_250_avg_%'], 1)}%; ${L.points} LEED point(s) from this credit alone.`,
+        `sDA300/50% da casa ${nf(L['sDA300_50_avg_%'])}%, ASE ${nf(L['ASE1000_250_avg_%'], 1)}%; ${L.points} ponto(s) LEED só por este crédito.`), tabUp]);
+  }
+  if (B && B.per_column) {
+    const pc = B.per_column, bs = B.bhi_sum, counted = B.rooms.filter(r => r.counted), n3 = counted.filter(r => r.three_layers).length;
+    rows.push([X('Biophilia: views, 14-pattern matrix, healing index', 'Biofilia: vistas, matriz de 14 padrões, índice de cura'),
+      X(`${n3} of ${counted.length} rooms have a view with sky, vegetation and ground; matrix: ${pc.few_areas} patterns in a few areas, ${pc.only_in_detail} only in detail, ${pc.not_included} not included, ${pc.not_evaluated} not evaluated. Healing index ${bs.calculated} of ${bs.calculated_max} possible (only ${bs.calculated_components} of 10 components can be calculated).`,
+        `${n3} de ${counted.length} ambientes têm vista com céu, vegetação e chão; matriz: ${pc.few_areas} padrões em poucas áreas, ${pc.only_in_detail} só em detalhe, ${pc.not_included} não incluído, ${pc.not_evaluated} não avaliados. Índice de cura ${bs.calculated} de ${bs.calculated_max} possíveis (só ${bs.calculated_components} dos 10 componentes podem ser calculados).`), tabBio]);
+    const M = B.moisture;
+    if (M && M.rooms && M.rooms.length) {
+      const opn = M.rooms.filter(r => r.open.risk_share_pct > 0).length, att = (M.attention || []).map(rn).join(', ') || X('none', 'nenhum');
+      rows.push([X('Moisture and mould (screening)', 'Umidade e mofo (triagem)'),
+        X(`With the windows open as modelled, ${opn} room(s) at risk. In the limit case of windows shut all year without air conditioning: ${att}. Rooms without a moisture source in the model cannot be assessed.`,
+          `Com as janelas abertas como no modelo, ${opn} ambiente(s) em risco. No caso-limite de janelas fechadas o ano todo sem ar-condicionado: ${att}. Ambientes sem fonte de umidade no modelo não podem ser avaliados.`), tabBio]);
+    }
+  }
+  if (!rows.length) return '';
+  return `<h3>${X('Other studies in this viewer', 'Outros estudos deste visualizador')}</h3><table><tr><th>${X('Study', 'Estudo')}</th><th>${X('Main result', 'Resultado principal')}</th><th>${X('Where', 'Onde')}</th></tr>`
+    + rows.map(r => `<tr><td><b>${r[0]}</b></td><td style="text-align:left">${r[1]}</td><td>${r[2]}</td></tr>`).join('') + '</table>';
 }
 
 function lampTable() {
@@ -754,8 +801,15 @@ function bioHtml() {
 function buildBio() {
   const h = bioHtml(); $('tab-bio').innerHTML = h;
   const sel = $('bioRoom'), im = $('bioView'); if (!sel || !im) return;
+  applyBioPick();
   const draw = () => { im.src = `assets/bio/bio_view_${sel.value}_${LANG}.png`; };
   sel.onchange = draw; draw();
+}
+function applyBioPick() {   // deep link (index.html#bio=...) selects the room in the Biofilia tab when the tab is already built
+  const sel = $('bioRoom'), im = $('bioView');
+  if (!sel || !im || !bioPick || ![...sel.options].some(o => o.value === bioPick)) return false;
+  sel.value = bioPick; im.src = `assets/bio/bio_view_${bioPick}_${LANG}.png`;
+  return true;
 }
 function engineCards(M) {
   const E = M.engines || []; if (!E.length) return '';
@@ -855,6 +909,20 @@ const VIEWS = { front: [[0, 4, 34.5], [0, 0.5, 4.5]], aerial: [[25.5, 24, 32.5],
 function goView(name) { const [o, tg] = VIEWS[name], k = SK, asp = innerWidth / innerHeight, f = asp >= 1 ? 1 : Math.min(1.9, 0.62 / asp + 0.25);      // portrait screens: stand farther back so the whole house fits the width
   camera.position.set(CENTER.x + o[0] * k * f, Math.max(o[1] * k * f, 3), CENTER.z + o[2] * k * f);
   controls.target.set(CENTER.x + tg[0] * k, CENTER.y + tg[1] * k, CENTER.z + tg[2] * k); controls.update(); }
+function fly(p1, t1) {      // smooth camera flight (~0.7 s, eased); a new flight replaces the previous one
+  if (fly.id) cancelAnimationFrame(fly.id);
+  const p0 = camera.position.clone(), t0 = controls.target.clone(), t0s = performance.now();
+  const step = () => {
+    const u = Math.min(1, (performance.now() - t0s) / 700), s = 1 - Math.pow(1 - u, 3);
+    camera.position.lerpVectors(p0, p1, s); controls.target.lerpVectors(t0, t1, s); controls.update();
+    fly.id = u < 1 ? requestAnimationFrame(step) : null;
+  };
+  step();
+}
+function goBioView(bv) {    // room view: camera at the eye 1 m behind the window (model metre coords; three = m2t(x, z, -y))
+  const e = bv.view.eye, d = bv.view.dir, nl = Math.hypot(d[0], d[1]) || 1, s = 6 / nl;   // look 6 m ahead of the eye
+  fly(new THREE.Vector3(e[0], e[2], -e[1]), new THREE.Vector3(e[0] + d[0] * s, e[2], -(e[1] + d[1] * s)));
+}
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => goView(b.dataset.v));
 goView('aerial');
 $('seasonRow').style.opacity = 0.4;
@@ -866,6 +934,7 @@ $('seasonRow').style.opacity = 0.4;
   if (q.get('ov')) { S.overlay = q.get('ov'); const r = document.querySelector(`input[name=ov][value=${S.overlay}]`); if (r) r.checked = true; }
   if (q.get('season')) { S.season = q.get('season'); document.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x.dataset.s === S.season)); }
   if (q.get('view') && VIEWS[q.get('view')]) goView(q.get('view'));
+  if (q.get('bio')) { const bv = (stat.bio_views || []).find(v => v.slug === q.get('bio')); if (bv && bv.view) { bioPick = bv.slug; applyBioPick(); goBioView(bv); } }
   if (q.get('ghost') === '0') $('ghost').checked = false;
   if (q.get('labels') === '0') $('labels').checked = false;
   if (q.get('tab')) document.querySelector(`[data-tab=${q.get('tab')}]`)?.click();
@@ -931,5 +1000,5 @@ function setLang(l) {
 $('langPT').onclick = () => setLang('pt'); $('langEN').onclick = () => setLang('en');
 fetch('reports/Relatorio_Casa.pdf', { method: 'HEAD' }).then(r => { if (!r.ok) $('pdfLink').style.display = 'none'; }).catch(() => { $('pdfLink').style.display = 'none'; });
 applyStatic(); refresh();
-window.__viewer = { setLang, refresh, sunLine, CENTER, SK, get LANG() { return LANG; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
+window.__viewer = { setLang, refresh, sunLine, CENTER, SK, get LANG() { return LANG; }, get bioPick() { return bioPick; }, S, camera, controls, pathGroup, sun, hideable, zoneMeshes };      // handle for tools/test_viewer.py
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
