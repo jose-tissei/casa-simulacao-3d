@@ -71,7 +71,7 @@
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <!-- start every download at once: the module graph and the three data files (the page code fetches the data only after the modules have loaded) -->
-<link rel="modulepreload" href="./vendor/three.module.min.js"><link rel="modulepreload" href="./vendor/OrbitControls.js"><link rel="modulepreload" href="./app.js?v=3">
+<link rel="modulepreload" href="./vendor/three.module.min.js"><link rel="modulepreload" href="./vendor/OrbitControls.js"><link rel="modulepreload" href="./app.js?v=4">
 <link rel="preload" as="fetch" crossorigin href="data/geometry.json"><link rel="preload" as="fetch" crossorigin href="data/hourly.json"><link rel="preload" as="fetch" crossorigin href="data/static.json">
 </head>
 <body>
@@ -115,6 +115,8 @@
     <button data-v="front" data-pt="Rua">Street</button><button data-v="aerial" data-pt="Aérea">Aerial</button><button data-v="top" data-pt="Topo">Top</button>
     <button data-v="east" data-pt="Lado esquerdo">Left side</button><button data-v="west" data-pt="Lado direito">Right side</button><button data-v="back" data-pt="Fundos">Back</button>
   </div>
+  <h3 data-pt="Vistas dos ambientes">Room views</h3>
+  <div class="row small" id="bioViewControls"></div>
   <div id="hint" class="small mut" data-pt="Arraste para girar, role para ampliar, arraste com o botão direito para mover. O norte é o lado da rua.">Drag to rotate, wheel to zoom, right-drag to move. North is the street side.</div>
 </div>
 
@@ -139,6 +141,6 @@
 </div>
 
 <div id="legend" class="panel"><div id="legendTitle" class="small"></div><div id="bar"></div><div id="legendScale" class="small mut"></div></div>
-<script type="module" src="./app.js?v=3"></script>
+<script type="module" src="./app.js?v=4"></script>
 </body>
 </html>

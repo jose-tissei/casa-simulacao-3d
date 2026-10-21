@@ -924,6 +924,13 @@ function goBioView(bv) {    // room view: camera at the eye 1 m behind the windo
   fly(new THREE.Vector3(e[0], e[2], -e[1]), new THREE.Vector3(e[0] + d[0] * s, e[2], -(e[1] + d[1] * s)));
 }
 document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => goView(b.dataset.v));
+const bioViewControls = $('bioViewControls');
+for (const bv of stat.bio_views || []) {
+  const button = document.createElement('button');
+  button.type = 'button'; button.dataset.bioView = bv.slug; button.textContent = rn(bv.room);
+  button.onclick = () => { bioPick = bv.slug; applyBioPick(); goBioView(bv); };
+  bioViewControls.append(button);
+}
 goView('aerial');
 $('seasonRow').style.opacity = 0.4;
 // optional deep link, e.g. index.html#doy=355&hour=15&ov=temp&view=top&ghost=0&labels=0&season=winter_kWh_m2&tab=year
@@ -995,6 +1002,7 @@ function applyStatic() {
 }
 function setLang(l) {
   LANG = l; SC = stat.scales[l]; localStorage.setItem('lang', l);
+  for (const bv of stat.bio_views || []) { const button = bioViewControls.querySelector(`[data-bio-view="${bv.slug}"]`); if (button) button.textContent = rn(bv.room); }
   applyStatic(); buildYear(); buildGood(); buildMat(); buildUp(); buildBio(); buildMeth(); refresh();
 }
 $('langPT').onclick = () => setLang('pt'); $('langEN').onclick = () => setLang('en');
