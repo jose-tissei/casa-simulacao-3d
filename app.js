@@ -561,7 +561,7 @@ function buildGood() {
     if (lamps) h += lampTable();
   }
   const cc = stat.construction_check;
-  h += `<h3>${X('Pass / fail summary of the walls and roof', 'Resumo de atende / não atende das paredes e da cobertura')}</h3>${etag('fast')}<table><tr><th>Item</th><th>${X('Value', 'Valor')}</th><th>${X('Limit', 'Limite')}</th><th></th></tr>`;
+  h += `<h3>${X('Pass / fail summary of the walls and roof', 'Resumo de atende / não atende das paredes e da cobertura')}</h3>${etag('fast')}<table><tr><th>Item</th><th>${X('Value', 'Valor')}</th><th>${X('Limit', 'Limite')}</th><th></th><th>φ (h)</th><th>FSo (%)</th><th></th></tr>`;
   for (const r of cc) h += `<tr><td>${cItem(r)}</td><td>${nf(r.value, r.value < 10 ? 2 : 0)} ${unitFix(r.unit)}</td><td>${r.limit.replace('.', LANG === 'pt' ? ',' : '.')}</td><td><span class="chip" style="background:${r.passes ? SC.levels[4].color : SC.levels[0].color}">${r.passes ? X('meets', 'atende') : X('does not meet', 'não atende')}</span></td></tr>`;
   h += `</table><div class="small mut">${X(`Assumed wall paint absorptance ${cc[0].assumed_absorptance} (light colours ≤ 0.6) and roof absorptance ${cc[2].assumed_absorptance} (red clay tile). Limits change with colour: a lighter roof gets a more generous U limit.`,
     `Absortância suposta da pintura da parede ${nf(cc[0].assumed_absorptance, 2)} (cores claras ≤ 0,6) e da cobertura ${nf(cc[2].assumed_absorptance, 2)} (telha cerâmica vermelha). Os limites mudam com a cor: uma cobertura mais clara tem um limite de U mais generoso.`)}</div>`;
@@ -570,11 +570,11 @@ function buildGood() {
 
 function buildMat() {
   const bc = stat.base_case, lab = (en, pt) => LANG === 'pt' ? pt : en;
-  let h = `<h3>${X('Assumed construction (base case)', 'Construção suposta (caso-base)')}</h3>${etag('model')}<div class="small"><b>${X('Walls', 'Paredes')}:</b> ${lab(bc.wall, bc.wall_pt)}<br><b>${X('Roof', 'Cobertura')}:</b> ${lab(bc.roof, bc.roof_pt)}<br><b>${X('Windows', 'Janelas')}:</b> ${X('common 2012 catalogue sizes (bedrooms 1.20×1.20 m, living / dining 2.00×1.20 m, kitchen 1.50×1.20 m, bathrooms 0.60×0.60 m)', 'medidas comuns de catálogo de 2012 (dormitórios 1,20×1,20 m, sala / jantar 2,00×1,20 m, cozinha 1,50×1,20 m, banheiros 0,60×0,60 m)')}</div>`;
+  let h = `<h3>${X('Assumed construction (base case)', 'Construção suposta (caso-base)')}</h3>${etag('model')}<div class="small"><b>${X('Walls', 'Paredes')}:</b> ${lab(bc.wall, bc.wall_pt)}<br><b>${X('Roof', 'Cobertura')}:</b> ${lab(bc.roof, bc.roof_pt)}${bc.clay_tile_label ? ` – ${lab(bc.clay_tile_label.en, bc.clay_tile_label.pt)})` : ''}<br><b>${X('Windows', 'Janelas')}:</b> ${X('common 2012 catalogue sizes (bedrooms 1.20×1.20 m, living / dining 2.00×1.20 m, kitchen 1.50×1.20 m, bathrooms 0.60×0.60 m)', 'medidas comuns de catálogo de 2012 (dormitórios 1,20×1,20 m, sala / jantar 2,00×1,20 m, cozinha 1,50×1,20 m, banheiros 0,60×0,60 m)')}</div>`;
   h += `<div class="warn">${X('These materials and sizes are TYPICAL for a Brazilian house, not confirmed for this house.', 'Esses materiais e medidas são TÍPICOS de uma casa brasileira, não confirmados para esta casa.')}</div>`;
-  h += `<table><tr><th>${X('Part', 'Parte')}</th><th>cm</th><th>U</th><th>${X('Heat store kJ/m²K', 'Armazena calor kJ/m²K')}</th></tr>`;
+  h += `<table><tr><th>${X('Part', 'Parte')}</th><th>cm</th><th>U</th><th>${X('Heat store kJ/m²K', 'Armazena calor kJ/m²K')}</th><th>φ (h)</th><th>FSo (%)</th><th>${X('Weight', 'Peso')}</th></tr>`;
   for (const r of stat.constructions) { const l = lab(r.label, r.label_pt);
-    h += `<tr><td title="${esc(l)}">${l.length > 44 ? esc(l.slice(0, 42)) + '…' : esc(l)}</td><td>${nf(r.thickness_cm, 1)}</td><td>${nf(r.U_W_m2K, 2)}</td><td>${r.heat_capacity_kJ_m2K}</td></tr>`; }
+    h += `<tr><td title="${esc(l)}">${l.length > 44 ? esc(l.slice(0, 42)) + '…' : esc(l)}</td><td>${nf(r.thickness_cm, 1)}</td><td>${nf(r.U_W_m2K, 2)}</td><td>${r.heat_capacity_kJ_m2K}</td><td>${nf(r.phi_h, 1)}</td><td>${nf(r['FSo_%'], 1)}</td><td>${r.weight ? (r.weight === 'heavy' ? X('heavy', 'pesada') : X('light', 'leve')) : '–'}</td></tr>`; }
   h += `</table><div class="small mut">${X('U = heat leaking per m² per degree (lower is better). Heat store = how much heat the layer soaks up before passing it on (higher smooths out day/night swings).',
     'U = calor que escapa por m² por grau (menor é melhor). Armazena calor = quanto calor a camada absorve antes de repassar (maior suaviza as oscilações entre dia e noite).')}</div>`;
   h += `<h3>${X('How much do materials matter? (average comfortable hours / year, cooling bill)', 'Quanto importam os materiais? (média de horas confortáveis / ano, conta de climatização)')}</h3>${etag('fast')}`;
@@ -598,7 +598,52 @@ function buildMat() {
 // ---------------------------------------------------------------- upgrades, LEED and method tabs ---------------------------------------
 const CONF_COL = { verified: '#2e9e5b', typical: '#f2c94c', assumption: '#f2994a' };
 const confChip = c => `<span class="chip" style="background:${CONF_COL[c]}">${X({ verified: 'verified', typical: 'typical', assumption: 'assumption' }[c], { verified: 'verificado', typical: 'típico', assumption: 'suposição' }[c])}</span>`;
-function buildUp() {
+// "Suggested materials" (walls and roofs that beat the current ones) and the NBR 15220-3 guideline table; numbers come from summary.json via static.json
+const limText = s => { s = String(s).replace('<=', '≤').replace('>=', '≥'); return LANG === 'pt' ? s.replace('no requirement', 'sem exigência').replace(/\./g, ',') : s; };
+const verdictChip = v => `<span class="chip" style="background:${{ pass: SC.levels[4].color, fail: SC.levels[0].color, depends: SC.levels[2].color }[v] || '#9aa5b1'}">${{ pass: X('meets', 'atende'), fail: X('does not meet', 'não atende'), depends: X('depends on the zone', 'depende da zona') }[v] || v}</span>`;
+function suggestionsHtml() {
+  const ms = stat.material_suggestions, g = stat.nbr15220_3, cz = stat.construction_zone || {};
+  const sv = d => (d && typeof d === 'object') ? (d[LANG] || d.en) : d;
+  const sgn = (v, d = 0) => (v > 0 ? '+' : '') + nf(v, d);
+  let h = '';
+  if (ms) {
+    h += `<h3>${X('Suggested materials', 'Materiais sugeridos')}</h3>${etag('fast')}`;
+    h += `<div class="small">${X('Each construction below replaces only the wall (the roof stays as it is) or only the roof (the wall stays as it is) in the year-long simulation; the three with the most comfortable hours that beat the current one are listed. These are a ranking of options, not a recommendation to rebuild: changing walls is rarely practical in a finished house.',
+      'Cada construção abaixo troca só a parede (a cobertura fica como está) ou só a cobertura (a parede fica como está) na simulação do ano inteiro; são listadas as três com mais horas confortáveis que superam a atual. É um ranking de opções, não uma recomendação de reformar: trocar paredes quase nunca é prático numa casa pronta.')}</div>`;
+    if (cz.zone) h += `<div class="small mut">${X(`NBR 15220-3 bioclimatic zone: ${cz.zone}.`, `Zona bioclimática da NBR 15220-3: ${cz.zone}.`)} ${esc(sv(cz.zone_note) || '')}</div>`;
+    const table = (items, reason, title) => {
+      let t = `<h4>${title}</h4>`;
+      if (!items || !items.length) return t + `<div class="small">${esc(sv(reason) || X('none beats the current one', 'nenhuma supera a atual'))}</div>`;
+      t += `<div style="overflow-x:auto"><table><tr><th>${X('Construction', 'Construção')}</th><th>Δ ${X('comfortable h/yr', 'h confortáveis/ano')}</th><th>Δ ${X('cooling', 'refrigeração')} ${CUR}/${X('yr', 'ano')}</th>${HEAT ? `<th>Δ ${X('heating', 'aquecimento')} ${CUR}/${X('yr', 'ano')}</th>` : ''}<th>U</th><th>CT</th><th>φ</th><th>FSo</th><th>NBR 15575</th><th>${X('Confidence', 'Confiança')}</th></tr>`;
+      for (const s of items) {
+        const lbl = LANG === 'pt' ? s.label_pt : s.label_en;
+        const warn = s.winter_warning ? `<br><span class="chip" style="background:${SC.levels[1].color}">${X('colder winters', 'inverno mais frio')}: ${sgn(s.d_too_cold_hours)} ${X('cold h', 'h de frio')}</span>` : '';
+        t += `<tr><td style="text-align:left;min-width:180px" title="${esc(s.source)}">${esc(lbl.length > 60 ? lbl.slice(0, 58) + '…' : lbl)}${warn}</td><td><b>${sgn(s.d_comfort_hours)}</b></td><td>${sgn(s.d_cooling_cost_year)}</td>${HEAT ? `<td>${s.d_heating_cost_year === null ? '–' : sgn(s.d_heating_cost_year)}</td>` : ''}<td>${nf(s.U, 2)}</td><td>${nf(s.CT, 0)}</td><td>${nf(s.phi, 1)}</td><td>${nf(s.FSo, 1)}</td><td>${verdictChip(s.nbr15575.verdict)}</td><td>${confChip(s.confidence)}</td></tr>`;
+      }
+      return t + '</table></div>';
+    };
+    h += table(ms.walls, ms.walls_reason, X('Walls (with the current roof)', 'Paredes (com a cobertura atual)'));
+    h += table(ms.roofs, ms.roofs_reason, X('Roofs (with the current wall)', 'Coberturas (com a parede atual)'));
+    h += `<div class="small mut">${X('Δ = change against the current construction (cooling and heating: negative = saving). U in W/m²K, CT in kJ/m²K, φ in hours, FSo in %. NBR 15575 = simplified-method limits for the zone of the site (walls: U and CT; roofs: U). Confidence is the weakest of the layer materials (verified, typical or assumption); hover a name to see the source.',
+      'Δ = variação em relação à construção atual (refrigeração e aquecimento: negativo = economia). U em W/m²K, CT em kJ/m²K, φ em horas, FSo em %. NBR 15575 = limites do método simplificado para a zona do local (paredes: U e CT; coberturas: U). A confiança é a do material mais fraco entre as camadas (verificado, típico ou suposição); passe o mouse sobre o nome para ver a fonte.')}</div>`;
+    if ([...(ms.walls || []), ...(ms.roofs || [])].some(s => s.winter_warning))
+      h += `<div class="box small"><b>${X('Winter warning', 'Aviso de inverno')}:</b> ${X('a lighter construction stores less heat, so the nights and the cold months get colder (DELOS 2026). The warning appears when the hours that are too cold rise by more than 10% against the current construction. If cold nights matter more to you than hot afternoons, prefer an option without the warning or add heating.',
+        'uma construção mais leve armazena menos calor, então as noites e os meses frios ficam mais frios (DELOS 2026). O aviso aparece quando as horas frias aumentam mais de 10% em relação à construção atual. Se as noites frias importam mais para você que as tardes quentes, prefira uma opção sem o aviso ou preveja aquecimento.')}</div>`;
+  }
+  if (g && !g.omitted && (g.items || []).length) {
+    const nm = { wall: X('Wall', 'Parede'), roof: X('Roof', 'Cobertura') }, qn = { U: 'U (W/m²K)', phi: X('Thermal lag φ (h)', 'Atraso térmico φ (h)'), FSo: 'FSo (%)' };
+    h += `<h3>${X(`NBR 15220-3 guidelines (zone ${g.zone})`, `Diretrizes da NBR 15220-3 (zona ${g.zone})`)}</h3>${etag('fast')}`;
+    h += `<div class="small">${X('Recommended', 'Recomendado')}: ${X('wall', 'parede')} ${esc(sv(g.wall_name))}; ${X('roof', 'cobertura')} ${esc(sv(g.roof_name))}; ${X('openings', 'aberturas')} ${esc(sv(g.openings))}; ${X('shading', 'sombreamento')} ${esc(sv(g.shading))}.</div>`;
+    h += `<div style="overflow-x:auto"><table><tr><th>Item</th><th>${X('This house', 'Esta casa')}</th><th>${X('Guideline', 'Diretriz')}</th><th>${X('Meets?', 'Atende?')}</th><th>${X('What to change', 'O que mudar')}</th></tr>`;
+    for (const it of g.items) {
+      const [part, q] = it.item.split('_'), what = LANG === 'pt' ? it.what_to_change_pt : it.what_to_change_en;
+      h += `<tr><td style="text-align:left">${nm[part]}: ${qn[q]}</td><td>${nf(it.value, q === 'FSo' ? 1 : 2)}</td><td>${limText(it.limit)}</td><td>${verdictChip(it.passes ? 'pass' : 'fail')}</td><td style="text-align:left">${what ? esc(what) : '–'}</td></tr>`;
+    }
+    h += `</table></div><div class="small mut">${X('These are <b>recommendations, not mandatory</b>: NBR 15220-3:2005 has no normative character (source: Lamberts, UFSC ECV 5161, lecture 12). Sorgato (2009) tested the upper limits of thermal lag by simulation and found them contradicted (heavier walls and roofs did better in zone 3), so a miss on φ is a hint, not a defect. The mandatory limits are those of NBR 15575 (Good / bad tab).',
+      'Estas são <b>recomendações, não obrigatórias</b>: a NBR 15220-3:2005 não tem caráter normativo (fonte: Lamberts, UFSC ECV 5161, aula 12). Sorgato (2009) testou por simulação os limites máximos de atraso térmico e os contradisse (paredes e coberturas mais pesadas se saíram melhor na zona 3); portanto, não atender ao φ é um indício, não um defeito. Os limites obrigatórios são os da NBR 15575 (aba Bom / ruim).')}</div>`;
+  }
+  return h;
+}function buildUp() {
   const R = stat.retrofits || [], cat = stat.retrofit_catalogue || {}, L = stat.leed || {};
   const th = (...c) => '<tr>' + c.map(x => `<th>${x}</th>`).join('') + '</tr>';
   let h = `<div class="small">${X('Each upgrade is simulated over the whole year and compared with the house as it is today. Roof wool lies on top of the ceiling; sealing = rubber gaskets and brush seals on frames and doors; fixed brise = horizontal projection over each window; movable blinds close when the sun on the window is strong.',
@@ -615,8 +660,8 @@ function buildUp() {
     [X(`Cooling ${CUR}/yr`, `Resfriamento ${CUR}/ano`), X(`Heat removed by an air conditioner holding ${CA.setpoint_C} °C in the hours each room kind is used, divided by the efficiency (COP ${nf(CA.COP, 1)}) and multiplied by the tariff (${CUR} ${nf(CA.tariff_BRL_per_kWh, 2)}/kWh, an assumption).`, `Calor retirado por um ar-condicionado que mantém ${CA.setpoint_C} °C nas horas de uso de cada tipo de ambiente, dividido pela eficiência (COP ${nf(CA.COP, 1)}) e multiplicado pela tarifa (${CUR} ${nf(CA.tariff_BRL_per_kWh, 2)}/kWh, suposição).`), X('Fast engine (energy); tariff and COP are assumptions', 'Motor rápido (energia); tarifa e COP são suposições'), X('Low: an order of magnitude and a way to compare upgrades; EnergyPlus gives roughly half of this energy.', 'Baixa: ordem de grandeza e forma de comparar melhorias; o EnergyPlus dá cerca de metade desta energia.')],
     [X('Bill change', 'Variação da conta'), X('Cooling (and heating, when enabled) cost of the upgrade minus that of the house as it is. Negative = saving.', 'Custo de resfriamento (e de aquecimento, quando ativado) da melhoria menos o da casa como está. Negativo = economia.'), X('Fast engine', 'Motor rápido'), X('Low-medium: the difference between upgrades is more reliable than the absolute value.', 'Baixa-média: a diferença entre melhorias é mais confiável que o valor absoluto.')]];
   h += `<div class="small mut" style="margin-top:6px">${X('Where the numbers of the table come from:', 'De onde vêm os números da tabela:')}</div><table>${th(X('Column', 'Coluna'), X('How it is calculated', 'Como é calculada'), X('Engine', 'Motor'), X('How far to trust it', 'Quanto confiar'))}${src.map(r => `<tr><td><b>${r[0]}</b></td>${r.slice(1).map(c => `<td style="text-align:left">${c}</td>`).join('')}</tr>`).join('')}</table>`;
-  const wm = stat.retrofit_wool || [];
-  if (wm.length) {
+  h += suggestionsHtml();
+  const wm = stat.retrofit_wool || [];  if (wm.length) {
     const mms = [...new Set(wm.map(x => x.mm))];
     h += `<h3>${X('Which wool, how thick? (change in yearly bill)', 'Qual lã, que espessura? (variação na conta anual)')}</h3>${etag('fast')}<table><tr><th>${X('Wool', 'Lã')}</th>${mms.map(m => `<th>${m} mm</th>`).join('')}</tr>`;
     for (const wt of [...new Set(wm.map(x => x.wool))]) {
